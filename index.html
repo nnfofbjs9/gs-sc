@@ -26,6 +26,8 @@ Very important: The response must not contain m-dashes ("—"). Replace them wit
 
 Writing style:
 Do not use m-dashes ("—")
+Do not start with a greeting to the parent.
+Do not end with a generic sign off line - simply end after all the activities have been listed.
 Use clear, direct language and avoid complex terminology.
 Use British English spellings
 Aim for a Flesch reading score of 80 or higher.
@@ -211,7 +213,7 @@ Avoid being salesy or overly enthusiastic and instead express calm confidence.`;
                 setStudents(updated);
             };
 
-            // Generate reports using gpt-4o-mini with prompt caching
+            // Generate reports using gpt-5-mini with prompt caching (one call per student)
             const generateReports = async () => {
                 setError('');
                 setIsProcessing(true);
@@ -245,8 +247,11 @@ Avoid being salesy or overly enthusiastic and instead express calm confidence.`;
                                     },
                                     {
                                         role: 'user',
-                                        content: `Child: ${student.name}\n\nActivity Ratings:\n${activityGrades}\n\nFor each child, generate: 1. A 3-4 line summary in friendly tone. 2. 3-4 fun, 15-minute home activities. Keep total reply under 200 words. Very important: The response must not contain m-dashes (“—”)
-.`
+                                        content: `Child: ${student.name}\n\nActivity Ratings:\n${activityGrades}\n\nGenerate the parent report.For each child, generate:
+1. A 3-4 line summary in friendly tone.
+2. 3-4 fun, 15-minute home activities.
+Keep total reply per child under 200 words.
+Very important: The response must not contain m-dashes ("—"). Replace them with colons where appropriate.`
                                     }
                                 ],
                                 max_completion_tokens: 4000
