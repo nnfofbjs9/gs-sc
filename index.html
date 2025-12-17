@@ -122,7 +122,7 @@ Avoid being salesy or overly enthusiastic and instead express calm confidence.`;
                                     ]
                                 }
                             ],
-                            max_completion_tokens: 1500
+                            max_completion_tokens: 7000
                         })
                     });
 
@@ -245,15 +245,11 @@ Avoid being salesy or overly enthusiastic and instead express calm confidence.`;
                                     },
                                     {
                                         role: 'user',
-                                        content: `Child: ${student.name}\n\nActivity Ratings:\n${activityGrades}\n\nFor each child, generate:
-1. A 3-4 line summary in friendly tone.
-2. 3-4 fun, 15-minute home activities.
-Keep total reply under 200 words.
-Very important: The response must not contain m-dashes (“—”)
+                                        content: `Child: ${student.name}\n\nActivity Ratings:\n${activityGrades}\n\nFor each child, generate: 1. A 3-4 line summary in friendly tone. 2. 3-4 fun, 15-minute home activities. Keep total reply under 200 words. Very important: The response must not contain m-dashes (“—”)
 .`
                                     }
                                 ],
-                                max_completion_tokens: 400
+                                max_completion_tokens: 4000
                             })
                         });
 
