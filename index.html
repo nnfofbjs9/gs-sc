@@ -63,6 +63,7 @@
         // =====================================================
         function AuthScreen({ onAuthSuccess }) {
             const [isLogin, setIsLogin] = useState(true);
+            const [showForgotPassword, setShowForgotPassword] = useState(false);
             const [email, setEmail] = useState('');
             const [password, setPassword] = useState('');
             const [name, setName] = useState('');
@@ -93,6 +94,12 @@
                             }
                         });
                         if (error) throw error;
+                        
+                        // Check if user already exists (Supabase returns a user with identities = [] for existing users)
+                        if (data.user && data.user.identities && data.user.identities.length === 0) {
+                            throw new Error('An account with this email already exists. Please sign in instead.');
+                        }
+                        
                         if (data.user && !data.session) {
                             setMessage('Check your email for the confirmation link!');
                         } else {
@@ -106,12 +113,37 @@
                 }
             };
 
+            const handleForgotPassword = async (e) => {
+                e.preventDefault();
+                setError('');
+                setMessage('');
+                
+                if (!email.trim()) {
+                    setError('Please enter your email address');
+                    return;
+                }
+                
+                setLoading(true);
+
+                try {
+                    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+                        redirectTo: window.location.origin,
+                    });
+                    if (error) throw error;
+                    setMessage('Password reset link sent! Check your email.');
+                } catch (err) {
+                    setError(err.message);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
             return (
                 <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
                     <div className="bg-white rounded-lg shadow-xl p-8 max-w-md w-full">
                         <h1 className="text-3xl font-bold text-gray-800 mb-2">Gradesheet Scanner</h1>
                         <p className="text-gray-600 mb-6">
-                            {isLogin ? 'Sign in to continue' : 'Create your account'}
+                            {showForgotPassword ? 'Reset your password' : (isLogin ? 'Sign in to continue' : 'Create your account')}
                         </p>
 
                         {error && (
@@ -126,73 +158,135 @@
                             </div>
                         )}
 
-                        <form onSubmit={handleSubmit}>
-                            {!isLogin && (
+                        {showForgotPassword ? (
+                            /* Forgot Password Form */
+                            <form onSubmit={handleForgotPassword}>
                                 <div className="mb-4">
                                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                                        Your Name
+                                        Email Address
                                     </label>
                                     <input
-                                        type="text"
-                                        value={name}
-                                        onChange={(e) => setName(e.target.value)}
-                                        placeholder="Jane Smith"
+                                        type="email"
+                                        value={email}
+                                        onChange={(e) => setEmail(e.target.value)}
+                                        placeholder="you@example.com"
                                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                        required={!isLogin}
+                                        required
                                     />
                                 </div>
-                            )}
 
-                            <div className="mb-4">
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Email Address
-                                </label>
-                                <input
-                                    type="email"
-                                    value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
-                                    placeholder="you@example.com"
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                    required
-                                />
+                                <button
+                                    type="submit"
+                                    disabled={loading}
+                                    className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition"
+                                >
+                                    {loading ? 'Please wait...' : 'Send Reset Link'}
+                                </button>
+
+                                <div className="mt-4 text-center">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setShowForgotPassword(false);
+                                            setError('');
+                                            setMessage('');
+                                        }}
+                                        className="text-blue-600 hover:underline"
+                                    >
+                                        Back to Sign In
+                                    </button>
+                                </div>
+                            </form>
+                        ) : (
+                            /* Login / Signup Form */
+                            <form onSubmit={handleSubmit}>
+                                {!isLogin && (
+                                    <div className="mb-4">
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                            Your Name
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={name}
+                                            onChange={(e) => setName(e.target.value)}
+                                            placeholder="Jane Smith"
+                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                            required={!isLogin}
+                                        />
+                                    </div>
+                                )}
+
+                                <div className="mb-4">
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Email Address
+                                    </label>
+                                    <input
+                                        type="email"
+                                        value={email}
+                                        onChange={(e) => setEmail(e.target.value)}
+                                        placeholder="you@example.com"
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                        required
+                                    />
+                                </div>
+
+                                <div className="mb-2">
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Password
+                                    </label>
+                                    <input
+                                        type="password"
+                                        value={password}
+                                        onChange={(e) => setPassword(e.target.value)}
+                                        placeholder="••••••••"
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                        required
+                                        minLength={6}
+                                    />
+                                </div>
+
+                                {isLogin && (
+                                    <div className="mb-6 text-right">
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setShowForgotPassword(true);
+                                                setError('');
+                                                setMessage('');
+                                            }}
+                                            className="text-sm text-blue-600 hover:underline"
+                                        >
+                                            Forgot password?
+                                        </button>
+                                    </div>
+                                )}
+
+                                {!isLogin && <div className="mb-6"></div>}
+
+                                <button
+                                    type="submit"
+                                    disabled={loading}
+                                    className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition"
+                                >
+                                    {loading ? 'Please wait...' : (isLogin ? 'Sign In' : 'Create Account')}
+                                </button>
+                            </form>
+                        )}
+
+                        {!showForgotPassword && (
+                            <div className="mt-6 text-center">
+                                <button
+                                    onClick={() => {
+                                        setIsLogin(!isLogin);
+                                        setError('');
+                                        setMessage('');
+                                    }}
+                                    className="text-blue-600 hover:underline"
+                                >
+                                    {isLogin ? "Don't have an account? Sign up" : 'Already have an account? Sign in'}
+                                </button>
                             </div>
-
-                            <div className="mb-6">
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Password
-                                </label>
-                                <input
-                                    type="password"
-                                    value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
-                                    placeholder="••••••••"
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                    required
-                                    minLength={6}
-                                />
-                            </div>
-
-                            <button
-                                type="submit"
-                                disabled={loading}
-                                className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition"
-                            >
-                                {loading ? 'Please wait...' : (isLogin ? 'Sign In' : 'Create Account')}
-                            </button>
-                        </form>
-
-                        <div className="mt-6 text-center">
-                            <button
-                                onClick={() => {
-                                    setIsLogin(!isLogin);
-                                    setError('');
-                                    setMessage('');
-                                }}
-                                className="text-blue-600 hover:underline"
-                            >
-                                {isLogin ? "Don't have an account? Sign up" : 'Already have an account? Sign in'}
-                            </button>
-                        </div>
+                        )}
                     </div>
                 </div>
             );
