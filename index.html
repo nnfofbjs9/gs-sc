@@ -8,18 +8,29 @@
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Supabase Client -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState } = React;
+        const { useState, useEffect, useCallback } = React;
+
+        // =====================================================
+        // CONFIGURATION
+        // =====================================================
+        const SUPABASE_URL = 'https://zfkdypxmegocmjontbiz.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpma2R5cHhtZWdvY21qb250Yml6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU5NzM3MDMsImV4cCI6MjA4MTU0OTcwM30.GLwItBWPKW4EZ67wiAPuaKq38DA5WfJ5UYcvPPYsWwI';
+        
+        // Initialize Supabase client
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
         const SYSTEM_PROMPT = `You are an AI teaching assistant for a preschool enrichment program. You analyze teacher-provided skill ratings for each child and generate friendly, parent-facing feedback and short home activities using the PlayPack – a box of educational toys. There are 4 ratings: Excellent, Good, Needs Practice and Absent for class (abbreviated A, B, C and X, respectively). Keep the tone warm, supportive, and encouraging. Prioritize educational tasks for those fields in which the child has done poorly, but also those where they have done very well – thus encouraging them in easy tasks while getting them to improve in weak areas.
 The kit contains the following elements beads, playdoh, number tiles (dominos with numbers on them but without dots). Don't require much extra work from the parent even as little as asking them to draw something.
 Be very careful that the activities are completely safe for children. None of the activities should involve putting anything in the mouth, climbing or putting oneself or others in danger in anyway.
 For each child, generate:
-1. A 3–4 line summary in friendly tone.
+1. A 3-4 line summary in friendly tone.
 2. 3-4 fun, 15-minute home activities.
 Keep total reply per child under 200 words.
 Very important: The response must not contain m-dashes ("—"). Replace them with colons where appropriate.
@@ -37,16 +48,654 @@ Avoid buzzwords and instead use plain English.
 Use jargon where relevant.
 Avoid being salesy or overly enthusiastic and instead express calm confidence.`;
 
-        function App() {
-            const [apiKey, setApiKey] = useState('');
-            const [showApiInput, setShowApiInput] = useState(true);
-            const [currentScreen, setCurrentScreen] = useState('upload'); // upload, edit, reports
+        // =====================================================
+        // AUTHENTICATION COMPONENT
+        // =====================================================
+        function AuthScreen({ onAuthSuccess }) {
+            const [isLogin, setIsLogin] = useState(true);
+            const [email, setEmail] = useState('');
+            const [password, setPassword] = useState('');
+            const [name, setName] = useState('');
+            const [error, setError] = useState('');
+            const [loading, setLoading] = useState(false);
+            const [message, setMessage] = useState('');
+
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                setError('');
+                setMessage('');
+                setLoading(true);
+
+                try {
+                    if (isLogin) {
+                        const { data, error } = await supabase.auth.signInWithPassword({
+                            email,
+                            password
+                        });
+                        if (error) throw error;
+                        onAuthSuccess(data.user);
+                    } else {
+                        const { data, error } = await supabase.auth.signUp({
+                            email,
+                            password,
+                            options: {
+                                data: { name }
+                            }
+                        });
+                        if (error) throw error;
+                        if (data.user && !data.session) {
+                            setMessage('Check your email for the confirmation link!');
+                        } else {
+                            onAuthSuccess(data.user);
+                        }
+                    }
+                } catch (err) {
+                    setError(err.message);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            return (
+                <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-lg shadow-xl p-8 max-w-md w-full">
+                        <h1 className="text-3xl font-bold text-gray-800 mb-2">Gradesheet Scanner</h1>
+                        <p className="text-gray-600 mb-6">
+                            {isLogin ? 'Sign in to continue' : 'Create your account'}
+                        </p>
+
+                        {error && (
+                            <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg mb-4">
+                                {error}
+                            </div>
+                        )}
+
+                        {message && (
+                            <div className="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-lg mb-4">
+                                {message}
+                            </div>
+                        )}
+
+                        <form onSubmit={handleSubmit}>
+                            {!isLogin && (
+                                <div className="mb-4">
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Your Name
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={name}
+                                        onChange={(e) => setName(e.target.value)}
+                                        placeholder="Jane Smith"
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                        required={!isLogin}
+                                    />
+                                </div>
+                            )}
+
+                            <div className="mb-4">
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Email Address
+                                </label>
+                                <input
+                                    type="email"
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
+                                    placeholder="you@example.com"
+                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    required
+                                />
+                            </div>
+
+                            <div className="mb-6">
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Password
+                                </label>
+                                <input
+                                    type="password"
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                    placeholder="••••••••"
+                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    required
+                                    minLength={6}
+                                />
+                            </div>
+
+                            <button
+                                type="submit"
+                                disabled={loading}
+                                className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition"
+                            >
+                                {loading ? 'Please wait...' : (isLogin ? 'Sign In' : 'Create Account')}
+                            </button>
+                        </form>
+
+                        <div className="mt-6 text-center">
+                            <button
+                                onClick={() => {
+                                    setIsLogin(!isLogin);
+                                    setError('');
+                                    setMessage('');
+                                }}
+                                className="text-blue-600 hover:underline"
+                            >
+                                {isLogin ? "Don't have an account? Sign up" : 'Already have an account? Sign in'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // =====================================================
+        // API KEY SETUP COMPONENT
+        // =====================================================
+        function ApiKeySetup({ onApiKeySet, savedApiKey }) {
+            const [apiKey, setApiKey] = useState(savedApiKey || '');
+            const [error, setError] = useState('');
+
+            const handleContinue = () => {
+                if (apiKey.trim()) {
+                    localStorage.setItem('openai_api_key', apiKey.trim());
+                    onApiKeySet(apiKey.trim());
+                } else {
+                    setError('Please enter your API key');
+                }
+            };
+
+            return (
+                <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-lg shadow-xl p-8 max-w-md w-full">
+                        <h1 className="text-3xl font-bold text-gray-800 mb-2">OpenAI API Key</h1>
+                        <p className="text-gray-600 mb-6">Enter your API key for AI processing</p>
+
+                        {error && (
+                            <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg mb-4">
+                                {error}
+                            </div>
+                        )}
+
+                        <div className="mb-4">
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                OpenAI API Key
+                            </label>
+                            <input
+                                type="password"
+                                value={apiKey}
+                                onChange={(e) => setApiKey(e.target.value)}
+                                placeholder="sk-..."
+                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            />
+                        </div>
+
+                        <button
+                            onClick={handleContinue}
+                            disabled={!apiKey.trim()}
+                            className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition"
+                        >
+                            Continue
+                        </button>
+
+                        <div className="mt-4 p-4 bg-blue-50 rounded-lg text-sm text-gray-700">
+                            <p className="font-medium mb-1">Don't have an API key?</p>
+                            <p>Get one at <a href="https://platform.openai.com/api-keys" target="_blank" className="text-blue-600 underline">platform.openai.com/api-keys</a></p>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // =====================================================
+        // NAVIGATION HEADER COMPONENT
+        // =====================================================
+        function NavHeader({ user, onSignOut, currentView, onViewChange }) {
+            const [showMenu, setShowMenu] = useState(false);
+
+            return (
+                <header className="bg-white shadow-sm border-b border-gray-200">
+                    <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+                        <div className="flex items-center gap-6">
+                            <h1 className="text-xl font-bold text-gray-800">Gradesheet Scanner</h1>
+                            <nav className="hidden md:flex gap-4">
+                                <button
+                                    onClick={() => onViewChange('scanner')}
+                                    className={`px-3 py-1 rounded ${currentView === 'scanner' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:text-gray-800'}`}
+                                >
+                                    Scanner
+                                </button>
+                                <button
+                                    onClick={() => onViewChange('history')}
+                                    className={`px-3 py-1 rounded ${currentView === 'history' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:text-gray-800'}`}
+                                >
+                                    History
+                                </button>
+                                <button
+                                    onClick={() => onViewChange('classes')}
+                                    className={`px-3 py-1 rounded ${currentView === 'classes' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:text-gray-800'}`}
+                                >
+                                    Classes
+                                </button>
+                            </nav>
+                        </div>
+                        
+                        <div className="relative">
+                            <button
+                                onClick={() => setShowMenu(!showMenu)}
+                                className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-100"
+                            >
+                                <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white font-medium">
+                                    {user?.email?.[0]?.toUpperCase() || '?'}
+                                </div>
+                                <span className="hidden sm:inline text-gray-700">{user?.email}</span>
+                            </button>
+
+                            {showMenu && (
+                                <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
+                                    <div className="md:hidden border-b border-gray-200 pb-1 mb-1">
+                                        <button
+                                            onClick={() => { onViewChange('scanner'); setShowMenu(false); }}
+                                            className="w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-100"
+                                        >
+                                            Scanner
+                                        </button>
+                                        <button
+                                            onClick={() => { onViewChange('history'); setShowMenu(false); }}
+                                            className="w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-100"
+                                        >
+                                            History
+                                        </button>
+                                        <button
+                                            onClick={() => { onViewChange('classes'); setShowMenu(false); }}
+                                            className="w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-100"
+                                        >
+                                            Classes
+                                        </button>
+                                    </div>
+                                    <button
+                                        onClick={onSignOut}
+                                        className="w-full text-left px-4 py-2 text-red-600 hover:bg-gray-100"
+                                    >
+                                        Sign Out
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </header>
+            );
+        }
+
+        // =====================================================
+        // SESSION HISTORY COMPONENT
+        // =====================================================
+        function SessionHistory({ user, onLoadSession }) {
+            const [sessions, setSessions] = useState([]);
+            const [loading, setLoading] = useState(true);
+            const [error, setError] = useState('');
+
+            useEffect(() => {
+                loadSessions();
+            }, []);
+
+            const loadSessions = async () => {
+                try {
+                    const { data, error } = await supabase
+                        .from('sessions')
+                        .select(`
+                            *,
+                            classes (class_name, center_id),
+                            reports (report_id, student_id)
+                        `)
+                        .eq('teacher_id', user.id)
+                        .order('session_date', { ascending: false })
+                        .limit(50);
+
+                    if (error) throw error;
+                    setSessions(data || []);
+                } catch (err) {
+                    setError('Failed to load sessions: ' + err.message);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const deleteSession = async (sessionId) => {
+                if (!confirm('Are you sure you want to delete this session? This will also delete all associated reports.')) {
+                    return;
+                }
+
+                try {
+                    const { error } = await supabase
+                        .from('sessions')
+                        .delete()
+                        .eq('session_id', sessionId);
+
+                    if (error) throw error;
+                    setSessions(sessions.filter(s => s.session_id !== sessionId));
+                } catch (err) {
+                    setError('Failed to delete session: ' + err.message);
+                }
+            };
+
+            if (loading) {
+                return (
+                    <div className="min-h-screen bg-gray-50 p-4">
+                        <div className="max-w-4xl mx-auto pt-8 text-center">
+                            <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-blue-600 border-t-transparent"></div>
+                            <p className="mt-2 text-gray-600">Loading sessions...</p>
+                        </div>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="min-h-screen bg-gray-50 p-4">
+                    <div className="max-w-4xl mx-auto pt-4">
+                        <div className="mb-6">
+                            <h2 className="text-2xl font-bold text-gray-800 mb-2">Session History</h2>
+                            <p className="text-gray-600">View and manage your past grading sessions</p>
+                        </div>
+
+                        {error && (
+                            <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg mb-6">
+                                {error}
+                            </div>
+                        )}
+
+                        {sessions.length === 0 ? (
+                            <div className="bg-white rounded-lg shadow p-8 text-center">
+                                <p className="text-gray-600 mb-4">No sessions yet. Start by scanning a gradesheet!</p>
+                            </div>
+                        ) : (
+                            <div className="space-y-4">
+                                {sessions.map((session) => (
+                                    <div key={session.session_id} className="bg-white rounded-lg shadow p-4">
+                                        <div className="flex justify-between items-start">
+                                            <div>
+                                                <h3 className="font-semibold text-gray-800">
+                                                    {session.classes?.class_name || 'Unnamed Session'}
+                                                </h3>
+                                                <p className="text-sm text-gray-600">
+                                                    {new Date(session.session_date).toLocaleDateString('en-GB', {
+                                                        weekday: 'long',
+                                                        year: 'numeric',
+                                                        month: 'long',
+                                                        day: 'numeric'
+                                                    })}
+                                                </p>
+                                                <div className="mt-2 flex gap-2">
+                                                    <span className={`px-2 py-1 text-xs rounded ${
+                                                        session.status === 'sent' ? 'bg-green-100 text-green-700' :
+                                                        session.status === 'completed' ? 'bg-blue-100 text-blue-700' :
+                                                        'bg-gray-100 text-gray-700'
+                                                    }`}>
+                                                        {session.status}
+                                                    </span>
+                                                    {session.reports && (
+                                                        <span className="px-2 py-1 text-xs bg-purple-100 text-purple-700 rounded">
+                                                            {session.reports.length} reports
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <div className="flex gap-2">
+                                                <button
+                                                    onClick={() => onLoadSession(session)}
+                                                    className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+                                                >
+                                                    View
+                                                </button>
+                                                <button
+                                                    onClick={() => deleteSession(session.session_id)}
+                                                    className="px-3 py-1 text-sm text-red-600 border border-red-300 rounded hover:bg-red-50"
+                                                >
+                                                    Delete
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        }
+
+        // =====================================================
+        // CLASS MANAGEMENT COMPONENT
+        // =====================================================
+        function ClassManagement({ user }) {
+            const [classes, setClasses] = useState([]);
+            const [loading, setLoading] = useState(true);
+            const [error, setError] = useState('');
+            const [showAddForm, setShowAddForm] = useState(false);
+            const [newClassName, setNewClassName] = useState('');
+            const [centers, setCenters] = useState([]);
+            const [selectedCenter, setSelectedCenter] = useState('');
+
+            useEffect(() => {
+                loadData();
+            }, []);
+
+            const loadData = async () => {
+                try {
+                    // Load classes
+                    const { data: classData, error: classError } = await supabase
+                        .from('classes')
+                        .select('*, centers(center_name), students(student_id, student_name)')
+                        .eq('teacher_id', user.id)
+                        .order('class_name');
+
+                    if (classError) throw classError;
+                    setClasses(classData || []);
+
+                    // Load centers (for adding new classes)
+                    const { data: centerData, error: centerError } = await supabase
+                        .from('centers')
+                        .select('*')
+                        .eq('is_active', true);
+
+                    if (centerError) throw centerError;
+                    setCenters(centerData || []);
+                    if (centerData?.length > 0) {
+                        setSelectedCenter(centerData[0].center_id);
+                    }
+                } catch (err) {
+                    setError('Failed to load data: ' + err.message);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const addClass = async () => {
+                if (!newClassName.trim() || !selectedCenter) return;
+
+                try {
+                    const { data, error } = await supabase
+                        .from('classes')
+                        .insert({
+                            class_name: newClassName.trim(),
+                            center_id: selectedCenter,
+                            teacher_id: user.id
+                        })
+                        .select('*, centers(center_name)')
+                        .single();
+
+                    if (error) throw error;
+                    setClasses([...classes, { ...data, students: [] }]);
+                    setNewClassName('');
+                    setShowAddForm(false);
+                } catch (err) {
+                    setError('Failed to add class: ' + err.message);
+                }
+            };
+
+            if (loading) {
+                return (
+                    <div className="min-h-screen bg-gray-50 p-4">
+                        <div className="max-w-4xl mx-auto pt-8 text-center">
+                            <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-blue-600 border-t-transparent"></div>
+                            <p className="mt-2 text-gray-600">Loading classes...</p>
+                        </div>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="min-h-screen bg-gray-50 p-4">
+                    <div className="max-w-4xl mx-auto pt-4">
+                        <div className="mb-6 flex justify-between items-center">
+                            <div>
+                                <h2 className="text-2xl font-bold text-gray-800 mb-2">My Classes</h2>
+                                <p className="text-gray-600">Manage your classes and students</p>
+                            </div>
+                            <button
+                                onClick={() => setShowAddForm(true)}
+                                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                            >
+                                + Add Class
+                            </button>
+                        </div>
+
+                        {error && (
+                            <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg mb-6">
+                                {error}
+                            </div>
+                        )}
+
+                        {showAddForm && (
+                            <div className="bg-white rounded-lg shadow p-4 mb-6">
+                                <h3 className="font-semibold text-gray-800 mb-3">Add New Class</h3>
+                                <div className="flex gap-3">
+                                    <input
+                                        type="text"
+                                        value={newClassName}
+                                        onChange={(e) => setNewClassName(e.target.value)}
+                                        placeholder="Class name"
+                                        className="flex-1 px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
+                                    />
+                                    {centers.length > 0 && (
+                                        <select
+                                            value={selectedCenter}
+                                            onChange={(e) => setSelectedCenter(e.target.value)}
+                                            className="px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
+                                        >
+                                            {centers.map(c => (
+                                                <option key={c.center_id} value={c.center_id}>
+                                                    {c.center_name}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    )}
+                                    <button
+                                        onClick={addClass}
+                                        className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+                                    >
+                                        Add
+                                    </button>
+                                    <button
+                                        onClick={() => setShowAddForm(false)}
+                                        className="px-4 py-2 text-gray-600 border border-gray-300 rounded hover:bg-gray-100"
+                                    >
+                                        Cancel
+                                    </button>
+                                </div>
+                                {centers.length === 0 && (
+                                    <p className="mt-2 text-sm text-amber-600">
+                                        Note: No centers found. Please ask an admin to add you to a center.
+                                    </p>
+                                )}
+                            </div>
+                        )}
+
+                        {classes.length === 0 ? (
+                            <div className="bg-white rounded-lg shadow p-8 text-center">
+                                <p className="text-gray-600 mb-4">No classes yet. Add your first class to get started!</p>
+                            </div>
+                        ) : (
+                            <div className="grid gap-4 md:grid-cols-2">
+                                {classes.map((cls) => (
+                                    <div key={cls.class_id} className="bg-white rounded-lg shadow p-4">
+                                        <h3 className="font-semibold text-gray-800">{cls.class_name}</h3>
+                                        <p className="text-sm text-gray-600">{cls.centers?.center_name}</p>
+                                        <div className="mt-2">
+                                            <span className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded">
+                                                {cls.students?.length || 0} students
+                                            </span>
+                                            {cls.level && (
+                                                <span className="ml-2 px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded">
+                                                    Level {cls.level}
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        }
+
+        // =====================================================
+        // MAIN SCANNER COMPONENT (Original functionality)
+        // =====================================================
+        function Scanner({ user, apiKey, initialSession }) {
+            const [currentScreen, setCurrentScreen] = useState(initialSession ? 'edit' : 'upload');
             const [uploadedImage, setUploadedImage] = useState(null);
             const [isProcessing, setIsProcessing] = useState(false);
-            const [activities, setActivities] = useState([]);
-            const [students, setStudents] = useState([]);
+            const [activities, setActivities] = useState(initialSession?.ocr_processed?.activities || []);
+            const [students, setStudents] = useState(initialSession?.ocr_processed?.students || []);
             const [reports, setReports] = useState([]);
             const [error, setError] = useState('');
+            const [currentSessionId, setCurrentSessionId] = useState(initialSession?.session_id || null);
+            const [selectedClassId, setSelectedClassId] = useState(initialSession?.class_id || null);
+            const [classes, setClasses] = useState([]);
+            const [saveStatus, setSaveStatus] = useState('');
+
+            // Load teacher's classes on mount
+            useEffect(() => {
+                loadClasses();
+            }, []);
+
+            // Load existing reports if viewing a session
+            useEffect(() => {
+                if (initialSession?.session_id) {
+                    loadSessionReports(initialSession.session_id);
+                }
+            }, [initialSession]);
+
+            const loadClasses = async () => {
+                const { data, error } = await supabase
+                    .from('classes')
+                    .select('class_id, class_name')
+                    .eq('teacher_id', user.id)
+                    .eq('is_active', true);
+
+                if (!error && data) {
+                    setClasses(data);
+                    if (data.length > 0 && !selectedClassId) {
+                        setSelectedClassId(data[0].class_id);
+                    }
+                }
+            };
+
+            const loadSessionReports = async (sessionId) => {
+                const { data, error } = await supabase
+                    .from('reports')
+                    .select('*, students(student_name)')
+                    .eq('session_id', sessionId);
+
+                if (!error && data && data.length > 0) {
+                    setReports(data.map(r => ({
+                        studentName: r.students?.student_name || 'Unknown',
+                        report: r.report_body
+                    })));
+                    setCurrentScreen('reports');
+                }
+            };
 
             // Compress image before upload
             const compressImage = (file) => {
@@ -59,7 +708,6 @@ Avoid being salesy or overly enthusiastic and instead express calm confidence.`;
                             let width = img.width;
                             let height = img.height;
                             
-                            // Limit max dimension to 1024px
                             const maxDim = 1024;
                             if (width > maxDim || height > maxDim) {
                                 if (width > height) {
@@ -83,6 +731,120 @@ Avoid being salesy or overly enthusiastic and instead express calm confidence.`;
                 });
             };
 
+            // Save session to database
+            const saveSession = async (ocrData, imageBase64) => {
+                try {
+                    setSaveStatus('Saving...');
+                    
+                    // Create or update session
+                    const sessionData = {
+                        class_id: selectedClassId,
+                        teacher_id: user.id,
+                        session_date: new Date().toISOString().split('T')[0],
+                        ocr_raw: ocrData,
+                        ocr_processed: ocrData,
+                        status: 'draft'
+                    };
+
+                    let sessionId = currentSessionId;
+
+                    if (currentSessionId) {
+                        // Update existing session
+                        const { error } = await supabase
+                            .from('sessions')
+                            .update(sessionData)
+                            .eq('session_id', currentSessionId);
+                        if (error) throw error;
+                    } else {
+                        // Create new session
+                        const { data, error } = await supabase
+                            .from('sessions')
+                            .insert(sessionData)
+                            .select()
+                            .single();
+                        
+                        if (error) throw error;
+                        sessionId = data.session_id;
+                        setCurrentSessionId(sessionId);
+                    }
+
+                    // Upload image to storage (optional - for reference)
+                    if (imageBase64 && sessionId) {
+                        try {
+                            const base64Data = imageBase64.split(',')[1];
+                            const byteCharacters = atob(base64Data);
+                            const byteNumbers = new Array(byteCharacters.length);
+                            for (let i = 0; i < byteCharacters.length; i++) {
+                                byteNumbers[i] = byteCharacters.charCodeAt(i);
+                            }
+                            const byteArray = new Uint8Array(byteNumbers);
+                            const blob = new Blob([byteArray], { type: 'image/jpeg' });
+
+                            const filePath = `${user.id}/${sessionId}.jpg`;
+                            const { error: uploadError } = await supabase.storage
+                                .from('gradesheets')
+                                .upload(filePath, blob, { upsert: true });
+
+                            if (!uploadError) {
+                                // Update session with image URL
+                                const { data: urlData } = supabase.storage
+                                    .from('gradesheets')
+                                    .getPublicUrl(filePath);
+
+                                await supabase
+                                    .from('sessions')
+                                    .update({ scan_file_url: urlData.publicUrl })
+                                    .eq('session_id', sessionId);
+                            }
+                        } catch (uploadErr) {
+                            console.warn('Image upload failed (non-critical):', uploadErr);
+                        }
+                    }
+
+                    setSaveStatus('Saved!');
+                    setTimeout(() => setSaveStatus(''), 2000);
+                    return sessionId;
+                } catch (err) {
+                    console.error('Save error:', err);
+                    setSaveStatus('Save failed');
+                    return null;
+                }
+            };
+
+            // Save activity logs
+            const saveActivityLogs = async (sessionId) => {
+                if (!sessionId) return;
+
+                try {
+                    // Delete existing logs for this session
+                    await supabase
+                        .from('activity_logs')
+                        .delete()
+                        .eq('session_id', sessionId);
+
+                    // Create new logs
+                    const logs = [];
+                    for (const student of students) {
+                        for (let i = 0; i < activities.length; i++) {
+                            if (student.grades[i]) {
+                                logs.push({
+                                    session_id: sessionId,
+                                    student_id: null, // Would need student lookup/creation
+                                    activity_name: activities[i],
+                                    grade: student.grades[i]
+                                });
+                            }
+                        }
+                    }
+
+                    if (logs.length > 0) {
+                        await supabase.from('activity_logs').insert(logs);
+                    }
+                } catch (err) {
+                    console.error('Failed to save activity logs:', err);
+                }
+            };
+
             // Handle image upload
             const handleImageUpload = async (e) => {
                 const file = e.target.files[0];
@@ -92,11 +854,9 @@ Avoid being salesy or overly enthusiastic and instead express calm confidence.`;
                 setIsProcessing(true);
 
                 try {
-                    // Compress image
                     const compressedImage = await compressImage(file);
                     setUploadedImage(compressedImage);
 
-                    // Extract data using GPT Vision
                     const base64Image = compressedImage.split(',')[1];
                     
                     const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -134,10 +894,7 @@ Avoid being salesy or overly enthusiastic and instead express calm confidence.`;
                         throw new Error(data.error.message);
                     }
 
-                    // Parse the response
                     let extractedText = data.choices[0].message.content.trim();
-                    
-                    // Remove markdown code blocks if present
                     extractedText = extractedText.replace(/```json\n?/g, '').replace(/```\n?/g, '');
                     
                     const extractedData = JSON.parse(extractedText);
@@ -149,6 +906,9 @@ Avoid being salesy or overly enthusiastic and instead express calm confidence.`;
                     setActivities(extractedData.activities);
                     setStudents(extractedData.students);
                     setCurrentScreen('edit');
+
+                    // Auto-save to database
+                    await saveSession(extractedData, compressedImage);
                 } catch (err) {
                     setError(`Error: ${err.message}. Please check your API key and try again.`);
                     console.error(err);
@@ -157,28 +917,25 @@ Avoid being salesy or overly enthusiastic and instead express calm confidence.`;
                 }
             };
 
-            // Update student grade
+            // Update functions
             const updateGrade = (studentIndex, activityIndex, value) => {
                 const updated = [...students];
                 updated[studentIndex].grades[activityIndex] = value;
                 setStudents(updated);
             };
 
-            // Update student name
             const updateStudentName = (index, value) => {
                 const updated = [...students];
                 updated[index].name = value;
                 setStudents(updated);
             };
 
-            // Update activity name
             const updateActivityName = (index, value) => {
                 const updated = [...activities];
                 updated[index] = value;
                 setActivities(updated);
             };
 
-            // Add new student row
             const addStudent = () => {
                 setStudents([...students, { 
                     name: '', 
@@ -186,15 +943,12 @@ Avoid being salesy or overly enthusiastic and instead express calm confidence.`;
                 }]);
             };
 
-            // Delete student row
             const deleteStudent = (index) => {
                 setStudents(students.filter((_, i) => i !== index));
             };
 
-            // Add new activity column
             const addActivity = () => {
                 setActivities([...activities, '']);
-                // Add empty grade for this activity to all students
                 const updated = students.map(student => ({
                     ...student,
                     grades: [...student.grades, '']
@@ -202,10 +956,8 @@ Avoid being salesy or overly enthusiastic and instead express calm confidence.`;
                 setStudents(updated);
             };
 
-            // Delete activity column
             const deleteActivity = (index) => {
                 setActivities(activities.filter((_, i) => i !== index));
-                // Remove this grade from all students
                 const updated = students.map(student => ({
                     ...student,
                     grades: student.grades.filter((_, i) => i !== index)
@@ -213,15 +965,51 @@ Avoid being salesy or overly enthusiastic and instead express calm confidence.`;
                 setStudents(updated);
             };
 
-            // Generate reports using gpt-5-mini with prompt caching (one call per student)
+            // Save reports to database
+            const saveReports = async (sessionId, generatedReports) => {
+                if (!sessionId) return;
+
+                try {
+                    // Delete existing reports for this session
+                    await supabase
+                        .from('reports')
+                        .delete()
+                        .eq('session_id', sessionId);
+
+                    // Insert new reports
+                    const reportRecords = generatedReports.map(r => ({
+                        session_id: sessionId,
+                        student_id: null, // Would need student lookup
+                        report_body: r.report,
+                        generated_by: user.id
+                    }));
+
+                    await supabase.from('reports').insert(reportRecords);
+
+                    // Update session status
+                    await supabase
+                        .from('sessions')
+                        .update({ status: 'completed' })
+                        .eq('session_id', sessionId);
+                } catch (err) {
+                    console.error('Failed to save reports:', err);
+                }
+            };
+
+            // Generate reports
             const generateReports = async () => {
                 setError('');
                 setIsProcessing(true);
                 const generatedReports = [];
 
                 try {
+                    // Save current state first
+                    const sessionId = await saveSession(
+                        { activities, students },
+                        uploadedImage
+                    );
+
                     for (const student of students) {
-                        // Build activity-grade pairs
                         const activityGrades = activities.map((activity, idx) => 
                             `${activity}: ${student.grades[idx] || 'Not graded'}`
                         ).join('\n');
@@ -247,7 +1035,7 @@ Avoid being salesy or overly enthusiastic and instead express calm confidence.`;
                                     },
                                     {
                                         role: 'user',
-                                        content: `Child: ${student.name}\n\nActivity Ratings:\n${activityGrades}\n\nGenerate the parent report.For each child, generate:
+                                        content: `Child: ${student.name}\n\nActivity Ratings:\n${activityGrades}\n\nFor each child, generate:
 1. A 3-4 line summary in friendly tone.
 2. 3-4 fun, 15-minute home activities.
 Keep total reply per child under 200 words.
@@ -272,6 +1060,9 @@ Very important: The response must not contain m-dashes ("—"). Replace them wit
 
                     setReports(generatedReports);
                     setCurrentScreen('reports');
+
+                    // Save reports to database
+                    await saveReports(sessionId, generatedReports);
                 } catch (err) {
                     setError(`Error generating reports: ${err.message}`);
                     console.error(err);
@@ -280,7 +1071,7 @@ Very important: The response must not contain m-dashes ("—"). Replace them wit
                 }
             };
 
-            // Download report as text file
+            // Download report
             const downloadReport = (studentName, report) => {
                 const element = document.createElement('a');
                 const file = new Blob([`Report for ${studentName}\n\n${report}`], {type: 'text/plain'});
@@ -291,57 +1082,48 @@ Very important: The response must not contain m-dashes ("—"). Replace them wit
                 document.body.removeChild(element);
             };
 
-            // API Key Setup Screen
-            if (showApiInput) {
-                return (
-                    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-                        <div className="bg-white rounded-lg shadow-xl p-8 max-w-md w-full">
-                            <h1 className="text-3xl font-bold text-gray-800 mb-2">Gradesheet Scanner</h1>
-                            <p className="text-gray-600 mb-6">Enter your OpenAI API key to get started</p>
-                            
-                            <div className="mb-4">
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    OpenAI API Key
-                                </label>
-                                <input
-                                    type="password"
-                                    value={apiKey}
-                                    onChange={(e) => setApiKey(e.target.value)}
-                                    placeholder="sk-..."
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                />
-                            </div>
-
-                            <button
-                                onClick={() => {
-                                    if (apiKey.trim()) {
-                                        setShowApiInput(false);
-                                    } else {
-                                        setError('Please enter your API key');
-                                    }
-                                }}
-                                disabled={!apiKey.trim()}
-                                className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition"
-                            >
-                                Continue
-                            </button>
-
-                            <div className="mt-4 p-4 bg-blue-50 rounded-lg text-sm text-gray-700">
-                                <p className="font-medium mb-1">Don't have an API key?</p>
-                                <p>Get one at <a href="https://platform.openai.com/api-keys" target="_blank" className="text-blue-600 underline">platform.openai.com/api-keys</a></p>
-                            </div>
-                        </div>
-                    </div>
-                );
-            }
+            // Download all reports
+            const downloadAllReports = () => {
+                const allContent = reports.map(r => 
+                    `${'='.repeat(50)}\nReport for ${r.studentName}\n${'='.repeat(50)}\n\n${r.report}\n\n`
+                ).join('\n');
+                
+                const element = document.createElement('a');
+                const file = new Blob([allContent], {type: 'text/plain'});
+                element.href = URL.createObjectURL(file);
+                element.download = `all_reports_${new Date().toISOString().split('T')[0]}.txt`;
+                document.body.appendChild(element);
+                element.click();
+                document.body.removeChild(element);
+            };
 
             // Upload Screen
             if (currentScreen === 'upload') {
                 return (
                     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
                         <div className="max-w-2xl mx-auto pt-8">
-                            <h1 className="text-4xl font-bold text-gray-800 mb-2 text-center">Gradesheet Scanner</h1>
-                            <p className="text-gray-600 mb-8 text-center">Upload a gradesheet to get started</p>
+                            <h2 className="text-3xl font-bold text-gray-800 mb-2 text-center">Scan Gradesheet</h2>
+                            <p className="text-gray-600 mb-8 text-center">Upload or photograph a gradesheet to extract data</p>
+
+                            {classes.length > 0 && (
+                                <div className="mb-6">
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Select Class
+                                    </label>
+                                    <select
+                                        value={selectedClassId || ''}
+                                        onChange={(e) => setSelectedClassId(e.target.value)}
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                    >
+                                        <option value="">-- No class selected --</option>
+                                        {classes.map(c => (
+                                            <option key={c.class_id} value={c.class_id}>
+                                                {c.class_name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
 
                             {error && (
                                 <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg mb-6">
@@ -387,9 +1169,20 @@ Very important: The response must not contain m-dashes ("—"). Replace them wit
                 return (
                     <div className="min-h-screen bg-gray-50 p-4">
                         <div className="max-w-7xl mx-auto pt-4">
-                            <div className="mb-6">
-                                <h1 className="text-3xl font-bold text-gray-800 mb-2">Review & Edit Data</h1>
-                                <p className="text-gray-600">Make any necessary corrections before generating reports</p>
+                            <div className="mb-6 flex justify-between items-center">
+                                <div>
+                                    <h2 className="text-2xl font-bold text-gray-800 mb-1">Review & Edit Data</h2>
+                                    <p className="text-gray-600">Make any necessary corrections before generating reports</p>
+                                </div>
+                                {saveStatus && (
+                                    <span className={`px-3 py-1 rounded text-sm ${
+                                        saveStatus === 'Saved!' ? 'bg-green-100 text-green-700' : 
+                                        saveStatus === 'Save failed' ? 'bg-red-100 text-red-700' : 
+                                        'bg-gray-100 text-gray-700'
+                                    }`}>
+                                        {saveStatus}
+                                    </span>
+                                )}
                             </div>
 
                             {error && (
@@ -480,11 +1273,20 @@ Very important: The response must not contain m-dashes ("—"). Replace them wit
                                     + Add Student
                                 </button>
                                 <button
+                                    onClick={async () => {
+                                        await saveSession({ activities, students }, uploadedImage);
+                                    }}
+                                    className="px-6 py-3 bg-gray-600 text-white rounded-lg font-medium hover:bg-gray-700 transition"
+                                >
+                                    Save Draft
+                                </button>
+                                <button
                                     onClick={() => {
                                         setCurrentScreen('upload');
                                         setStudents([]);
                                         setActivities([]);
                                         setUploadedImage(null);
+                                        setCurrentSessionId(null);
                                     }}
                                     className="px-6 py-3 bg-gray-200 text-gray-800 rounded-lg font-medium hover:bg-gray-300 transition"
                                 >
@@ -516,8 +1318,17 @@ Very important: The response must not contain m-dashes ("—"). Replace them wit
                     <div className="min-h-screen bg-gray-50 p-4">
                         <div className="max-w-4xl mx-auto pt-4">
                             <div className="mb-6">
-                                <h1 className="text-3xl font-bold text-gray-800 mb-2">Generated Reports</h1>
+                                <h2 className="text-2xl font-bold text-gray-800 mb-2">Generated Reports</h2>
                                 <p className="text-gray-600">Review and download individual student reports</p>
+                            </div>
+
+                            <div className="mb-4">
+                                <button
+                                    onClick={downloadAllReports}
+                                    className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition"
+                                >
+                                    Download All Reports
+                                </button>
                             </div>
 
                             <div className="space-y-4">
@@ -545,6 +1356,7 @@ Very important: The response must not contain m-dashes ("—"). Replace them wit
                                         setActivities([]);
                                         setReports([]);
                                         setUploadedImage(null);
+                                        setCurrentSessionId(null);
                                     }}
                                     className="px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition"
                                 >
@@ -561,6 +1373,111 @@ Very important: The response must not contain m-dashes ("—"). Replace them wit
                     </div>
                 );
             }
+
+            return null;
+        }
+
+        // =====================================================
+        // MAIN APP COMPONENT
+        // =====================================================
+        function App() {
+            const [user, setUser] = useState(null);
+            const [loading, setLoading] = useState(true);
+            const [apiKey, setApiKey] = useState(localStorage.getItem('openai_api_key') || '');
+            const [showApiSetup, setShowApiSetup] = useState(false);
+            const [currentView, setCurrentView] = useState('scanner'); // scanner, history, classes
+            const [selectedSession, setSelectedSession] = useState(null);
+
+            // Check for existing session on mount
+            useEffect(() => {
+                supabase.auth.getSession().then(({ data: { session } }) => {
+                    setUser(session?.user || null);
+                    setLoading(false);
+                });
+
+                const { data: { subscription } } = supabase.auth.onAuthStateChange(
+                    (_event, session) => {
+                        setUser(session?.user || null);
+                    }
+                );
+
+                return () => subscription.unsubscribe();
+            }, []);
+
+            const handleSignOut = async () => {
+                await supabase.auth.signOut();
+                setUser(null);
+                setCurrentView('scanner');
+            };
+
+            const handleLoadSession = (session) => {
+                setSelectedSession(session);
+                setCurrentView('scanner');
+            };
+
+            // Loading state
+            if (loading) {
+                return (
+                    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+                        <div className="text-center">
+                            <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-blue-600 border-t-transparent"></div>
+                            <p className="mt-4 text-gray-600">Loading...</p>
+                        </div>
+                    </div>
+                );
+            }
+
+            // Not authenticated
+            if (!user) {
+                return <AuthScreen onAuthSuccess={setUser} />;
+            }
+
+            // Need API key
+            if (!apiKey || showApiSetup) {
+                return (
+                    <ApiKeySetup 
+                        onApiKeySet={(key) => {
+                            setApiKey(key);
+                            setShowApiSetup(false);
+                        }}
+                        savedApiKey={apiKey}
+                    />
+                );
+            }
+
+            // Main authenticated app
+            return (
+                <div className="min-h-screen bg-gray-50">
+                    <NavHeader 
+                        user={user} 
+                        onSignOut={handleSignOut}
+                        currentView={currentView}
+                        onViewChange={(view) => {
+                            setCurrentView(view);
+                            setSelectedSession(null);
+                        }}
+                    />
+
+                    {currentView === 'scanner' && (
+                        <Scanner 
+                            user={user} 
+                            apiKey={apiKey}
+                            initialSession={selectedSession}
+                        />
+                    )}
+
+                    {currentView === 'history' && (
+                        <SessionHistory 
+                            user={user}
+                            onLoadSession={handleLoadSession}
+                        />
+                    )}
+
+                    {currentView === 'classes' && (
+                        <ClassManagement user={user} />
+                    )}
+                </div>
+            );
         }
 
         ReactDOM.render(<App />, document.getElementById('root'));
