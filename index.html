@@ -1351,6 +1351,10 @@
                     if (error) throw error;
 
                     setMessage('Password updated successfully!');
+                    
+                    // Clear the URL hash so refresh doesn't show reset screen again
+                    window.history.replaceState(null, '', window.location.pathname);
+                    
                     setTimeout(() => {
                         onComplete();
                     }, 1500);
@@ -1435,6 +1439,14 @@
 
             // Check for existing session on mount
             useEffect(() => {
+                // Check URL for password recovery token BEFORE getting session
+                const hashParams = new URLSearchParams(window.location.hash.substring(1));
+                const type = hashParams.get('type');
+                
+                if (type === 'recovery') {
+                    setShowPasswordReset(true);
+                }
+
                 supabase.auth.getSession().then(({ data: { session } }) => {
                     setUser(session?.user || null);
                     setLoading(false);
@@ -1442,6 +1454,7 @@
 
                 const { data: { subscription } } = supabase.auth.onAuthStateChange(
                     (event, session) => {
+                        console.log('Auth event:', event); // Debug log
                         setUser(session?.user || null);
                         
                         // Detect password recovery event
