@@ -80,7 +80,7 @@ export default async function handler(req) {
             },
           ],
           max_output_tokens: 7000,
-          response_format: { type: 'json_object' },
+          text: { format: { type: 'json_object' } },
           temperature: 0,
         }),
       });
