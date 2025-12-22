@@ -68,7 +68,7 @@ export default async function handler(req) {
           'Authorization': `Bearer ${OPENAI_API_KEY}`,
         },
         body: JSON.stringify({
-          model: 'gpt-5-mini',
+          model: 'gpt-5-nano',
           messages: [
             {
               role: 'user',
@@ -115,7 +115,7 @@ export default async function handler(req) {
           'Authorization': `Bearer ${OPENAI_API_KEY}`,
         },
         body: JSON.stringify({
-          model: 'gpt-5-mini',
+          model: 'gpt-5-nano',
           messages: [
             {
               role: 'system',
