@@ -3,11 +3,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gradesheet Scanner</title>
+    <title>Gradesheet Scanner - Enrichment Express</title>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // Custom Tailwind config with brand colors
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            red: '#E63946',      // Primary red
+                            teal: '#2A9D8F',     // Primary teal
+                            'teal-dark': '#1E7268',
+                            'red-dark': '#C1121F',
+                            cream: '#FFF8F0',    // Light background
+                            white: '#FFFFFF',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
     <!-- Supabase Client -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
@@ -22,6 +41,13 @@
         // =====================================================
         const SUPABASE_URL = 'https://zfkdypxmegocmjontbiz.supabase.co';
         const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpma2R5cHhtZWdvY21qb250Yml6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU5NzM3MDMsImV4cCI6MjA4MTU0OTcwM30.GLwItBWPKW4EZ67wiAPuaKq38DA5WfJ5UYcvPPYsWwI';
+        
+        // =====================================================
+        // LOGO CONFIGURATION
+        // =====================================================
+        // >>> REPLACE THIS URL WITH YOUR COMPANY LOGO <<<
+        // Upload your logo to Supabase Storage or use any public URL
+        const COMPANY_LOGO_URL = '/logo.png';  // Place logo.png in your repo root, or use full URL like 'https://enrichmentexpress.com/assets/image/logo/1.png'
         
         // Initialize Supabase client
         const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -139,21 +165,25 @@
             };
 
             return (
-                <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-                    <div className="bg-white rounded-lg shadow-xl p-8 max-w-md w-full">
-                        <h1 className="text-3xl font-bold text-gray-800 mb-2">Gradesheet Scanner</h1>
-                        <p className="text-gray-600 mb-6">
+                <div className="min-h-screen bg-gradient-to-br from-brand-cream to-white flex items-center justify-center p-4">
+                    <div className="bg-white rounded-lg shadow-xl p-8 max-w-md w-full border-t-4 border-brand-teal">
+                        {/* LOGO - Replace COMPANY_LOGO_URL at top of file */}
+                        <div className="flex justify-center mb-6">
+                            <img src={COMPANY_LOGO_URL} alt="Company Logo" className="h-16 object-contain" onError={(e) => e.target.style.display='none'} />
+                        </div>
+                        <h1 className="text-3xl font-bold text-brand-teal mb-2 text-center">Gradesheet Scanner</h1>
+                        <p className="text-gray-600 mb-6 text-center">
                             {showForgotPassword ? 'Reset your password' : (isLogin ? 'Sign in to continue' : 'Create your account')}
                         </p>
 
                         {error && (
-                            <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg mb-4">
+                            <div className="bg-red-50 border border-brand-red text-brand-red px-4 py-3 rounded-lg mb-4">
                                 {error}
                             </div>
                         )}
 
                         {message && (
-                            <div className="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-lg mb-4">
+                            <div className="bg-teal-50 border border-brand-teal text-brand-teal-dark px-4 py-3 rounded-lg mb-4">
                                 {message}
                             </div>
                         )}
@@ -170,7 +200,7 @@
                                         value={email}
                                         onChange={(e) => setEmail(e.target.value)}
                                         placeholder="you@example.com"
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-teal focus:border-transparent"
                                         required
                                     />
                                 </div>
@@ -178,7 +208,7 @@
                                 <button
                                     type="submit"
                                     disabled={loading}
-                                    className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition"
+                                    className="w-full bg-brand-teal text-white py-3 rounded-lg font-medium hover:bg-brand-teal-dark disabled:bg-gray-400 disabled:cursor-not-allowed transition"
                                 >
                                     {loading ? 'Please wait...' : 'Send Reset Link'}
                                 </button>
@@ -191,7 +221,7 @@
                                             setError('');
                                             setMessage('');
                                         }}
-                                        className="text-blue-600 hover:underline"
+                                        className="text-brand-teal hover:underline"
                                     >
                                         Back to Sign In
                                     </button>
@@ -210,7 +240,7 @@
                                             value={name}
                                             onChange={(e) => setName(e.target.value)}
                                             placeholder="Jane Smith"
-                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-teal focus:border-transparent"
                                             required={!isLogin}
                                         />
                                     </div>
@@ -225,7 +255,7 @@
                                         value={email}
                                         onChange={(e) => setEmail(e.target.value)}
                                         placeholder="you@example.com"
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-teal focus:border-transparent"
                                         required
                                     />
                                 </div>
@@ -239,7 +269,7 @@
                                         value={password}
                                         onChange={(e) => setPassword(e.target.value)}
                                         placeholder="••••••••"
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-teal focus:border-transparent"
                                         required
                                         minLength={6}
                                     />
@@ -254,7 +284,7 @@
                                                 setError('');
                                                 setMessage('');
                                             }}
-                                            className="text-sm text-blue-600 hover:underline"
+                                            className="text-sm text-brand-teal hover:underline"
                                         >
                                             Forgot password?
                                         </button>
@@ -266,7 +296,7 @@
                                 <button
                                     type="submit"
                                     disabled={loading}
-                                    className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition"
+                                    className="w-full bg-brand-teal text-white py-3 rounded-lg font-medium hover:bg-brand-teal-dark disabled:bg-gray-400 disabled:cursor-not-allowed transition"
                                 >
                                     {loading ? 'Please wait...' : (isLogin ? 'Sign In' : 'Create Account')}
                                 </button>
@@ -281,7 +311,7 @@
                                         setError('');
                                         setMessage('');
                                     }}
-                                    className="text-blue-600 hover:underline"
+                                    className="text-brand-teal hover:underline"
                                 >
                                     {isLogin ? "Don't have an account? Sign up" : 'Already have an account? Sign in'}
                                 </button>
@@ -299,26 +329,30 @@
             const [showMenu, setShowMenu] = useState(false);
 
             return (
-                <header className="bg-white shadow-sm border-b border-gray-200">
+                <header className="bg-white shadow-sm border-b-2 border-brand-teal">
                     <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
                         <div className="flex items-center gap-6">
-                            <h1 className="text-xl font-bold text-gray-800">Gradesheet Scanner</h1>
+                            {/* LOGO IN HEADER */}
+                            <div className="flex items-center gap-3">
+                                <img src={COMPANY_LOGO_URL} alt="Logo" className="h-10 object-contain" onError={(e) => e.target.style.display='none'} />
+                                <h1 className="text-xl font-bold text-brand-teal">Gradesheet Scanner</h1>
+                            </div>
                             <nav className="hidden md:flex gap-4">
                                 <button
                                     onClick={() => onViewChange('scanner')}
-                                    className={`px-3 py-1 rounded ${currentView === 'scanner' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:text-gray-800'}`}
+                                    className={`px-3 py-1 rounded ${currentView === 'scanner' ? 'bg-teal-100 text-brand-teal' : 'text-gray-600 hover:text-gray-800'}`}
                                 >
                                     Scanner
                                 </button>
                                 <button
                                     onClick={() => onViewChange('history')}
-                                    className={`px-3 py-1 rounded ${currentView === 'history' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:text-gray-800'}`}
+                                    className={`px-3 py-1 rounded ${currentView === 'history' ? 'bg-teal-100 text-brand-teal' : 'text-gray-600 hover:text-gray-800'}`}
                                 >
                                     History
                                 </button>
                                 <button
                                     onClick={() => onViewChange('classes')}
-                                    className={`px-3 py-1 rounded ${currentView === 'classes' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:text-gray-800'}`}
+                                    className={`px-3 py-1 rounded ${currentView === 'classes' ? 'bg-teal-100 text-brand-teal' : 'text-gray-600 hover:text-gray-800'}`}
                                 >
                                     Classes
                                 </button>
@@ -330,7 +364,7 @@
                                 onClick={() => setShowMenu(!showMenu)}
                                 className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-100"
                             >
-                                <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white font-medium">
+                                <div className="w-8 h-8 bg-brand-teal rounded-full flex items-center justify-center text-white font-medium">
                                     {user?.email?.[0]?.toUpperCase() || '?'}
                                 </div>
                                 <span className="hidden sm:inline text-gray-700">{user?.email}</span>
@@ -360,7 +394,7 @@
                                     </div>
                                     <button
                                         onClick={onSignOut}
-                                        className="w-full text-left px-4 py-2 text-red-600 hover:bg-gray-100"
+                                        className="w-full text-left px-4 py-2 text-brand-red hover:bg-red-50"
                                     >
                                         Sign Out
                                     </button>
@@ -428,7 +462,7 @@
                 return (
                     <div className="min-h-screen bg-gray-50 p-4">
                         <div className="max-w-4xl mx-auto pt-8 text-center">
-                            <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-blue-600 border-t-transparent"></div>
+                            <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-brand-teal border-t-transparent"></div>
                             <p className="mt-2 text-gray-600">Loading sessions...</p>
                         </div>
                     </div>
@@ -473,7 +507,7 @@
                                                 <div className="mt-2 flex gap-2">
                                                     <span className={`px-2 py-1 text-xs rounded ${
                                                         session.status === 'sent' ? 'bg-green-100 text-green-700' :
-                                                        session.status === 'completed' ? 'bg-blue-100 text-blue-700' :
+                                                        session.status === 'completed' ? 'bg-teal-100 text-brand-teal' :
                                                         'bg-gray-100 text-gray-700'
                                                     }`}>
                                                         {session.status}
@@ -488,7 +522,7 @@
                                             <div className="flex gap-2">
                                                 <button
                                                     onClick={() => onLoadSession(session)}
-                                                    className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+                                                    className="px-3 py-1 text-sm bg-brand-teal text-white rounded hover:bg-brand-teal-dark"
                                                 >
                                                     View
                                                 </button>
@@ -582,7 +616,7 @@
                 return (
                     <div className="min-h-screen bg-gray-50 p-4">
                         <div className="max-w-4xl mx-auto pt-8 text-center">
-                            <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-blue-600 border-t-transparent"></div>
+                            <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-brand-teal border-t-transparent"></div>
                             <p className="mt-2 text-gray-600">Loading classes...</p>
                         </div>
                     </div>
@@ -599,7 +633,7 @@
                             </div>
                             <button
                                 onClick={() => setShowAddForm(true)}
-                                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                                className="px-4 py-2 bg-brand-teal text-white rounded-lg hover:bg-brand-teal-dark"
                             >
                                 + Add Class
                             </button>
@@ -620,13 +654,13 @@
                                         value={newClassName}
                                         onChange={(e) => setNewClassName(e.target.value)}
                                         placeholder="Class name"
-                                        className="flex-1 px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
+                                        className="flex-1 px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-brand-teal"
                                     />
                                     {centers.length > 0 && (
                                         <select
                                             value={selectedCenter}
                                             onChange={(e) => setSelectedCenter(e.target.value)}
-                                            className="px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
+                                            className="px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-brand-teal"
                                         >
                                             {centers.map(c => (
                                                 <option key={c.center_id} value={c.center_id}>
@@ -667,7 +701,7 @@
                                         <h3 className="font-semibold text-gray-800">{cls.class_name}</h3>
                                         <p className="text-sm text-gray-600">{cls.centers?.center_name}</p>
                                         <div className="mt-2">
-                                            <span className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded">
+                                            <span className="px-2 py-1 text-xs bg-teal-100 text-brand-teal rounded">
                                                 {cls.students?.length || 0} students
                                             </span>
                                             {cls.level && (
@@ -1039,7 +1073,7 @@
             // Upload Screen
             if (currentScreen === 'upload') {
                 return (
-                    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+                    <div className="min-h-screen bg-gradient-to-br from-brand-cream to-white p-4">
                         <div className="max-w-2xl mx-auto pt-8">
                             <h2 className="text-3xl font-bold text-gray-800 mb-2 text-center">Scan Gradesheet</h2>
                             <p className="text-gray-600 mb-8 text-center">Upload or photograph a gradesheet to extract data</p>
@@ -1052,7 +1086,7 @@
                                     <select
                                         value={selectedClassId || ''}
                                         onChange={(e) => setSelectedClassId(e.target.value)}
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-teal"
                                     >
                                         <option value="">-- No class selected --</option>
                                         {classes.map(c => (
@@ -1093,7 +1127,7 @@
 
                                 {isProcessing && (
                                     <div className="mt-6 text-center">
-                                        <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-blue-600 border-t-transparent"></div>
+                                        <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-brand-teal border-t-transparent"></div>
                                         <p className="mt-2 text-gray-600">Extracting student data...</p>
                                     </div>
                                 )}
@@ -1143,7 +1177,7 @@
                                                         type="text"
                                                         value={activity}
                                                         onChange={(e) => updateActivityName(index, e.target.value)}
-                                                        className="w-full px-2 py-1 border border-gray-300 rounded text-center focus:ring-2 focus:ring-blue-500"
+                                                        className="w-full px-2 py-1 border border-gray-300 rounded text-center focus:ring-2 focus:ring-brand-teal"
                                                     />
                                                     <button
                                                         onClick={() => deleteActivity(index)}
@@ -1171,7 +1205,7 @@
                                                         type="text"
                                                         value={student.name}
                                                         onChange={(e) => updateStudentName(studentIndex, e.target.value)}
-                                                        className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
+                                                        className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-brand-teal"
                                                         placeholder="Student name"
                                                     />
                                                 </td>
@@ -1180,7 +1214,7 @@
                                                         <select
                                                             value={grade}
                                                             onChange={(e) => updateGrade(studentIndex, gradeIndex, e.target.value)}
-                                                            className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 text-center"
+                                                            className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-brand-teal text-center"
                                                         >
                                                             <option value="">-</option>
                                                             <option value="A">A (Excellent)</option>
@@ -1234,7 +1268,7 @@
                                 <button
                                     onClick={generateReports}
                                     disabled={isProcessing || students.length === 0 || students.some(s => !s.name.trim())}
-                                    className="ml-auto px-8 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition"
+                                    className="ml-auto px-8 py-3 bg-brand-teal text-white rounded-lg font-medium hover:bg-brand-teal-dark disabled:bg-gray-400 disabled:cursor-not-allowed transition"
                                 >
                                     {isProcessing ? 'Generating...' : 'Generate Reports'}
                                 </button>
@@ -1242,7 +1276,7 @@
 
                             {isProcessing && (
                                 <div className="mt-6 text-center">
-                                    <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-blue-600 border-t-transparent"></div>
+                                    <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-brand-teal border-t-transparent"></div>
                                     <p className="mt-2 text-gray-600">Creating personalized reports...</p>
                                 </div>
                             )}
@@ -1277,7 +1311,7 @@
                                             <h3 className="text-xl font-semibold text-gray-800">{report.studentName}</h3>
                                             <button
                                                 onClick={() => downloadReport(report.studentName, report.report)}
-                                                className="px-4 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition"
+                                                className="px-4 py-2 bg-brand-teal text-white text-sm rounded hover:bg-brand-teal-dark transition"
                                             >
                                                 Download
                                             </button>
@@ -1297,7 +1331,7 @@
                                         setUploadedImage(null);
                                         setCurrentSessionId(null);
                                     }}
-                                    className="px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition"
+                                    className="px-6 py-3 bg-brand-teal text-white rounded-lg font-medium hover:bg-brand-teal-dark transition"
                                 >
                                     Process Another Gradesheet
                                 </button>
@@ -1366,7 +1400,7 @@
             };
 
             return (
-                <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+                <div className="min-h-screen bg-gradient-to-br from-brand-cream to-white flex items-center justify-center p-4">
                     <div className="bg-white rounded-lg shadow-xl p-8 max-w-md w-full">
                         <h1 className="text-3xl font-bold text-gray-800 mb-2">Reset Password</h1>
                         <p className="text-gray-600 mb-6">Enter your new password</p>
@@ -1393,7 +1427,7 @@
                                     value={newPassword}
                                     onChange={(e) => setNewPassword(e.target.value)}
                                     placeholder="••••••••"
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-teal focus:border-transparent"
                                     required
                                     minLength={6}
                                 />
@@ -1408,7 +1442,7 @@
                                     value={confirmPassword}
                                     onChange={(e) => setConfirmPassword(e.target.value)}
                                     placeholder="••••••••"
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-teal focus:border-transparent"
                                     required
                                     minLength={6}
                                 />
@@ -1417,7 +1451,7 @@
                             <button
                                 type="submit"
                                 disabled={loading}
-                                className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition"
+                                className="w-full bg-brand-teal text-white py-3 rounded-lg font-medium hover:bg-brand-teal-dark disabled:bg-gray-400 disabled:cursor-not-allowed transition"
                             >
                                 {loading ? 'Updating...' : 'Update Password'}
                             </button>
@@ -1485,9 +1519,9 @@
             // Loading state
             if (loading) {
                 return (
-                    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+                    <div className="min-h-screen bg-gradient-to-br from-brand-cream to-white flex items-center justify-center">
                         <div className="text-center">
-                            <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-blue-600 border-t-transparent"></div>
+                            <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-brand-teal border-t-transparent"></div>
                             <p className="mt-4 text-gray-600">Loading...</p>
                         </div>
                     </div>
