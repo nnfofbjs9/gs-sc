@@ -904,13 +904,22 @@
                     // Call our Edge Function instead of OpenAI directly
                     const data = await callOpenAI('extract', { image: base64Image });
 
+                    if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+                        throw new Error('Could not read the image. Please upload a clearer photo of the gradesheet.');
+                    }
+
                     let extractedText = data.choices[0].message.content.trim();
                     extractedText = extractedText.replace(/```json\n?/g, '').replace(/```\n?/g, '');
                     
-                    const extractedData = JSON.parse(extractedText);
+                    let extractedData;
+                    try {
+                        extractedData = JSON.parse(extractedText);
+                    } catch (parseErr) {
+                        throw new Error('Could not extract data from this image. Please upload a clearer photo with visible student names and grades.');
+                    }
                     
                     if (!extractedData.activities || !extractedData.students || extractedData.students.length === 0) {
-                        throw new Error('No student data found in the image');
+                        throw new Error('No student data found in the image. Please ensure the gradesheet is clearly visible.');
                     }
 
                     setActivities(extractedData.activities);
@@ -1025,6 +1034,10 @@
                             studentName: student.name,
                             activityGrades: activityGrades
                         });
+
+                        if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+                            throw new Error(`Failed to generate report for ${student.name}. Please try again.`);
+                        }
 
                         generatedReports.push({
                             studentName: student.name,
