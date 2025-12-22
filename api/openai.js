@@ -27,7 +27,6 @@ Use jargon where relevant.
 Avoid being salesy or overly enthusiastic and instead express calm confidence.`;
 
 export default async function handler(req) {
-  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, {
       status: 200,
@@ -46,7 +45,6 @@ export default async function handler(req) {
     });
   }
 
-  // Verify the request has a valid Supabase token
   const authHeader = req.headers.get('Authorization');
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return new Response(JSON.stringify({ error: 'Unauthorized' }), {
@@ -60,8 +58,7 @@ export default async function handler(req) {
     const { action, data } = body;
 
     if (action === 'extract') {
-      // Vision API call using /v1/responses with gpt-5-nano
-      const response = await fetch('https://api.openai.com/v1/responses', {
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -69,19 +66,24 @@ export default async function handler(req) {
         },
         body: JSON.stringify({
           model: 'gpt-5-nano',
-          input: [
+          messages: [
             {
-              type: 'input_text',
-              text: 'Extract student gradesheet data from this image. The gradesheet should show students in rows and activities/assessments in columns. Return ONLY a JSON object with this exact format: {"activities": ["Activity 1", "Activity 2", ...], "students": [{"name": "Student Name", "grades": ["A", "B", "C", ...]}, ...]}. The grades array should match the activities array in order. Use "A" for Excellent, "B" for Good, "C" for Needs Practice, "X" for Absent. If a grade is unclear, use empty string "".',
-            },
-            {
-              type: 'input_image',
-              image: data.image, // Raw base64, no data:image/... prefix
+              role: 'user',
+              content: [
+                {
+                  type: 'text',
+                  text: 'Extract student gradesheet data from this image. The gradesheet should show students in rows and activities/assessments in columns. Return ONLY a JSON object with this exact format: {"activities": ["Activity 1", "Activity 2", ...], "students": [{"name": "Student Name", "grades": ["A", "B", "C", ...]}, ...]}. The grades array should match the activities array in order. Use "A" for Excellent, "B" for Good, "C" for Needs Practice, "X" for Absent. If a grade is unclear, use empty string "".',
+                },
+                {
+                  type: 'image_url',
+                  image_url: {
+                    url: `data:image/jpeg;base64,${data.image}`,
+                  },
+                },
+              ],
             },
           ],
-          max_output_tokens: 7000,
-          text: { format: { type: 'json_object' } },
-          temperature: 0,
+          max_tokens: 7000,
         }),
       });
 
@@ -91,16 +93,7 @@ export default async function handler(req) {
         throw new Error(result.error.message);
       }
 
-      // Transform response to match old format for frontend compatibility
-      const transformedResult = {
-        choices: [{
-          message: {
-            content: result.output?.[0]?.content || result.output_text || JSON.stringify(result)
-          }
-        }]
-      };
-
-      return new Response(JSON.stringify(transformedResult), {
+      return new Response(JSON.stringify(result), {
         status: 200,
         headers: {
           'Content-Type': 'application/json',
@@ -109,10 +102,9 @@ export default async function handler(req) {
       });
 
     } else if (action === 'generate_report') {
-      // Generate report using /v1/responses with gpt-5-nano
       const { studentName, activityGrades } = data;
 
-      const response = await fetch('https://api.openai.com/v1/responses', {
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -120,18 +112,17 @@ export default async function handler(req) {
         },
         body: JSON.stringify({
           model: 'gpt-5-nano',
-          instructions: SYSTEM_PROMPT,
-          input: [
+          messages: [
             {
-              type: 'input_text',
-              text: `Child: ${studentName}\n\nActivity Ratings:\n${activityGrades}\n\nFor each child, generate:
-1. A 3-4 line summary in friendly tone.
-2. 3-4 fun, 15-minute home activities.
-Keep total reply per child under 200 words.
-Very important: The response must not contain m-dashes ("—"). Replace them with colons where appropriate.`,
+              role: 'system',
+              content: SYSTEM_PROMPT,
+            },
+            {
+              role: 'user',
+              content: `Child: ${studentName}\n\nActivity Ratings:\n${activityGrades}\n\nFor each child, generate:\n1. A 3-4 line summary in friendly tone.\n2. 3-4 fun, 15-minute home activities.\nKeep total reply per child under 200 words.\nVery important: The response must not contain m-dashes ("—"). Replace them with colons where appropriate.`,
             },
           ],
-          max_output_tokens: 4000,
+          max_tokens: 4000,
         }),
       });
 
@@ -141,16 +132,7 @@ Very important: The response must not contain m-dashes ("—"). Replace them wit
         throw new Error(result.error.message);
       }
 
-      // Transform response to match old format for frontend compatibility
-      const transformedResult = {
-        choices: [{
-          message: {
-            content: result.output?.[0]?.content || result.output_text || ''
-          }
-        }]
-      };
-
-      return new Response(JSON.stringify(transformedResult), {
+      return new Response(JSON.stringify(result), {
         status: 200,
         headers: {
           'Content-Type': 'application/json',
