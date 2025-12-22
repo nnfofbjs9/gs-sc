@@ -83,7 +83,7 @@ export default async function handler(req) {
               ],
             },
           ],
-          max_tokens: 7000,
+          max_completion_tokens: 7000,
         }),
       });
 
@@ -122,7 +122,7 @@ export default async function handler(req) {
               content: `Child: ${studentName}\n\nActivity Ratings:\n${activityGrades}\n\nFor each child, generate:\n1. A 3-4 line summary in friendly tone.\n2. 3-4 fun, 15-minute home activities.\nKeep total reply per child under 200 words.\nVery important: The response must not contain m-dashes ("—"). Replace them with colons where appropriate.`,
             },
           ],
-          max_tokens: 4000,
+          max_completion_tokens: 4000,
         }),
       });
 
