@@ -56,6 +56,20 @@
         const API_ENDPOINT = '/api/openai';
 
         // =====================================================
+        // DEBUG MODE (for site_admin role)
+        // =====================================================
+        let DEBUG_MODE = false;
+        let DEBUG_LOGS = [];
+        
+        function debugLog(label, data) {
+            if (DEBUG_MODE) {
+                const entry = { time: new Date().toISOString(), label, data };
+                DEBUG_LOGS.push(entry);
+                console.log(`[DEBUG] ${label}:`, data);
+            }
+        }
+
+        // =====================================================
         // API HELPER - Calls our Edge Function
         // =====================================================
         async function callOpenAI(action, data) {
@@ -65,6 +79,8 @@
             if (!token) {
                 throw new Error('Not authenticated');
             }
+
+            debugLog('API Request', { action, dataKeys: Object.keys(data || {}) });
 
             const response = await fetch(API_ENDPOINT, {
                 method: 'POST',
@@ -76,6 +92,8 @@
             });
 
             const result = await response.json();
+            
+            debugLog('API Response', { status: response.status, result });
 
             if (!response.ok) {
                 throw new Error(result.error || 'API request failed');
@@ -1475,6 +1493,37 @@
         }
 
         // =====================================================
+        // DEBUG PANEL COMPONENT (for site_admin)
+        // =====================================================
+        function DebugPanel() {
+            const [expanded, setExpanded] = useState(false);
+            
+            if (!DEBUG_MODE) return null;
+            
+            return (
+                <div className="fixed bottom-4 right-4 z-50">
+                    <button 
+                        onClick={() => setExpanded(!expanded)}
+                        className="bg-gray-800 text-white px-3 py-2 rounded-lg text-sm"
+                    >
+                        🐛 Debug ({DEBUG_LOGS.length})
+                    </button>
+                    {expanded && (
+                        <div className="absolute bottom-12 right-0 w-96 max-h-96 overflow-auto bg-gray-900 text-green-400 p-3 rounded-lg text-xs font-mono">
+                            <button onClick={() => { DEBUG_LOGS = []; setExpanded(false); }} className="text-red-400 mb-2">Clear</button>
+                            {DEBUG_LOGS.slice(-20).reverse().map((log, i) => (
+                                <div key={i} className="mb-2 border-b border-gray-700 pb-2">
+                                    <div className="text-yellow-400">{log.label}</div>
+                                    <pre className="whitespace-pre-wrap break-all">{JSON.stringify(log.data, null, 2)}</pre>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        // =====================================================
         // MAIN APP COMPONENT
         // =====================================================
         function App() {
@@ -1483,6 +1532,7 @@
             const [currentView, setCurrentView] = useState('scanner');
             const [selectedSession, setSelectedSession] = useState(null);
             const [showPasswordReset, setShowPasswordReset] = useState(false);
+            const [, forceUpdate] = useState(0); // For debug panel refresh
 
             // Check for existing session on mount
             useEffect(() => {
@@ -1494,8 +1544,23 @@
                     setShowPasswordReset(true);
                 }
 
-                supabase.auth.getSession().then(({ data: { session } }) => {
+                supabase.auth.getSession().then(async ({ data: { session } }) => {
                     setUser(session?.user || null);
+                    
+                    // Check if user is site_admin to enable debug mode
+                    if (session?.user) {
+                        const { data: teacher } = await supabase
+                            .from('teachers')
+                            .select('role')
+                            .eq('teacher_id', session.user.id)
+                            .single();
+                        
+                        if (teacher?.role === 'site_admin') {
+                            DEBUG_MODE = true;
+                            console.log('[DEBUG MODE ENABLED] You are a site_admin');
+                        }
+                    }
+                    
                     setLoading(false);
                 });
 
@@ -1581,6 +1646,8 @@
                     {currentView === 'classes' && (
                         <ClassManagement user={user} />
                     )}
+                    
+                    <DebugPanel />
                 </div>
             );
         }
