@@ -52,8 +52,8 @@
         // Initialize Supabase client
         const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-        // API endpoint (Vercel Edge Function)
-        const API_ENDPOINT = '/api/openai';
+        // API endpoint (Supabase Edge Function - 150s timeout)
+        const API_ENDPOINT = `${SUPABASE_URL}/functions/v1/openai`;
 
         // =====================================================
         // DEBUG MODE (for site_admin role)
@@ -70,7 +70,7 @@
         }
 
         // =====================================================
-        // API HELPER - Calls our Edge Function
+        // API HELPER - Calls Supabase Edge Function
         // =====================================================
         async function callOpenAI(action, data) {
             const session = await supabase.auth.getSession();
@@ -87,6 +87,7 @@
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`,
+                    'apikey': SUPABASE_ANON_KEY,
                 },
                 body: JSON.stringify({ action, data }),
             });
