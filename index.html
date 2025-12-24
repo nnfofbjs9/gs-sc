@@ -1034,7 +1034,6 @@
             const generateReports = async () => {
                 setError('');
                 setIsProcessing(true);
-                const generatedReports = [];
 
                 try {
                     const sessionId = await saveSession(
@@ -1042,12 +1041,12 @@
                         uploadedImage
                     );
 
-                    for (const student of students) {
+                    // Generate reports in parallel for speed
+                    const reportPromises = students.map(async (student) => {
                         const activityGrades = activities.map((activity, idx) => 
                             `${activity}: ${student.grades[idx] || 'Not graded'}`
                         ).join('\n');
 
-                        // Call our Edge Function instead of OpenAI directly
                         const data = await callOpenAI('generate_report', {
                             studentName: student.name,
                             activityGrades: activityGrades
@@ -1057,11 +1056,13 @@
                             throw new Error(`Failed to generate report for ${student.name}. Please try again.`);
                         }
 
-                        generatedReports.push({
+                        return {
                             studentName: student.name,
                             report: data.choices[0].message.content.trim()
-                        });
-                    }
+                        };
+                    });
+
+                    const generatedReports = await Promise.all(reportPromises);
 
                     setReports(generatedReports);
                     setCurrentScreen('reports');
