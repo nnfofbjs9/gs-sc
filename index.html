@@ -1107,6 +1107,11 @@
                     console.log('Failed students:', failedStudents.length);
                     console.log('Report names:', generatedReports.map(r => r.studentName));
                     
+                    // Log each report's content length
+                    generatedReports.forEach((r, i) => {
+                        console.log(`Report ${i}: "${r.studentName}" - content length: ${r.report?.length || 0}, content preview: "${(r.report || '').substring(0, 50)}..."`);
+                    });
+                    
                     if (generatedReports.length === 0) {
                         throw new Error('No reports could be generated. Please try again.');
                     }
