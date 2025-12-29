@@ -1036,6 +1036,10 @@
                 setError('');
                 setIsProcessing(true);
 
+                console.log('=== STARTING REPORT GENERATION ===');
+                console.log('Number of students:', students.length);
+                console.log('Students:', JSON.stringify(students.map(s => s.name)));
+
                 try {
                     const sessionId = await saveSession(
                         { activities, students },
@@ -1070,6 +1074,12 @@
 
                     const results = await Promise.allSettled(reportPromises);
                     
+                    console.log('=== PROMISE RESULTS ===');
+                    console.log('Total results:', results.length);
+                    results.forEach((r, i) => {
+                        console.log(`Result ${i} (${students[i]?.name}):`, r.status, r.status === 'rejected' ? r.reason : 'OK');
+                    });
+                    
                     // Separate successful and failed reports
                     const generatedReports = [];
                     const failedStudents = [];
@@ -1091,6 +1101,11 @@
                         const failedNames = failedStudents.map(s => s.name).join(', ');
                         setError(`Warning: Could not generate reports for: ${failedNames}. ${generatedReports.length} reports were generated successfully.`);
                     }
+                    
+                    console.log('=== FINAL REPORT COUNT ===');
+                    console.log('Generated reports:', generatedReports.length);
+                    console.log('Failed students:', failedStudents.length);
+                    console.log('Report names:', generatedReports.map(r => r.studentName));
                     
                     if (generatedReports.length === 0) {
                         throw new Error('No reports could be generated. Please try again.');
