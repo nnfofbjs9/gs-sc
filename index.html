@@ -1048,13 +1048,18 @@
                             `${activity}: ${student.grades[idx] || 'Not graded'}`
                         ).join('\n');
 
+                        debugLog('Generating report for', { studentName: student.name, activityGrades });
+
                         const data = await callOpenAI('generate_report', {
                             studentName: student.name,
                             activityGrades: activityGrades
                         });
 
+                        debugLog('Report response for ' + student.name, data);
+
                         if (!data.choices || !data.choices[0] || !data.choices[0].message) {
-                            throw new Error(`Failed to generate report for ${student.name}. Please try again.`);
+                            debugLog('Invalid response structure for ' + student.name, { data });
+                            throw new Error(`Invalid API response for ${student.name}. Response: ${JSON.stringify(data)}`);
                         }
 
                         return {
@@ -1063,7 +1068,33 @@
                         };
                     });
 
-                    const generatedReports = await Promise.all(reportPromises);
+                    const results = await Promise.allSettled(reportPromises);
+                    
+                    // Separate successful and failed reports
+                    const generatedReports = [];
+                    const failedStudents = [];
+                    
+                    results.forEach((result, index) => {
+                        if (result.status === 'fulfilled') {
+                            generatedReports.push(result.value);
+                        } else {
+                            failedStudents.push({
+                                name: students[index].name,
+                                error: result.reason?.message || 'Unknown error'
+                            });
+                            console.error(`Failed to generate report for ${students[index].name}:`, result.reason);
+                        }
+                    });
+                    
+                    // Show warning if some reports failed
+                    if (failedStudents.length > 0) {
+                        const failedNames = failedStudents.map(s => s.name).join(', ');
+                        setError(`Warning: Could not generate reports for: ${failedNames}. ${generatedReports.length} reports were generated successfully.`);
+                    }
+                    
+                    if (generatedReports.length === 0) {
+                        throw new Error('No reports could be generated. Please try again.');
+                    }
 
                     setReports(generatedReports);
                     setCurrentScreen('reports');
