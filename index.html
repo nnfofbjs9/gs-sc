@@ -1046,71 +1046,62 @@
                         uploadedImage
                     );
 
-                    // Generate reports in parallel for speed
-                    const reportPromises = students.map(async (student) => {
+                    // Generate reports sequentially to avoid rate limits
+                    const generatedReports = [];
+                    const failedStudents = [];
+                    
+                    for (let i = 0; i < students.length; i++) {
+                        const student = students[i];
                         const activityGrades = activities.map((activity, idx) => 
                             `${activity}: ${student.grades[idx] || 'Not graded'}`
                         ).join('\n');
 
-                        debugLog('Generating report for', { studentName: student.name, activityGrades });
+                        console.log(`Generating report ${i + 1}/${students.length} for ${student.name}...`);
 
-                        const data = await callOpenAI('generate_report', {
-                            studentName: student.name,
-                            activityGrades: activityGrades
-                        });
-
-                        debugLog('Report response for ' + student.name, data);
-
-                        if (!data.choices || !data.choices[0] || !data.choices[0].message) {
-                            debugLog('Invalid response structure for ' + student.name, { data });
-                            throw new Error(`Invalid API response for ${student.name}. Response: ${JSON.stringify(data)}`);
-                        }
-
-                        return {
-                            studentName: student.name,
-                            report: data.choices[0].message.content.trim()
-                        };
-                    });
-
-                    const results = await Promise.allSettled(reportPromises);
-                    
-                    console.log('=== PROMISE RESULTS ===');
-                    console.log('Total results:', results.length);
-                    results.forEach((r, i) => {
-                        console.log(`Result ${i} (${students[i]?.name}):`, r.status, r.status === 'rejected' ? r.reason : 'OK');
-                    });
-                    
-                    // Separate successful and failed reports
-                    const generatedReports = [];
-                    const failedStudents = [];
-                    
-                    results.forEach((result, index) => {
-                        if (result.status === 'fulfilled') {
-                            generatedReports.push(result.value);
-                        } else {
-                            failedStudents.push({
-                                name: students[index].name,
-                                error: result.reason?.message || 'Unknown error'
+                        try {
+                            const data = await callOpenAI('generate_report', {
+                                studentName: student.name,
+                                activityGrades: activityGrades
                             });
-                            console.error(`Failed to generate report for ${students[index].name}:`, result.reason);
+
+                            const content = data.choices?.[0]?.message?.content?.trim();
+                            
+                            if (!content || content.length === 0) {
+                                console.error(`Empty response for ${student.name}:`, data);
+                                failedStudents.push({
+                                    name: student.name,
+                                    error: 'Empty response from API'
+                                });
+                            } else {
+                                generatedReports.push({
+                                    studentName: student.name,
+                                    report: content
+                                });
+                                console.log(`✓ Report for ${student.name}: ${content.length} chars`);
+                            }
+                        } catch (err) {
+                            console.error(`Failed for ${student.name}:`, err);
+                            failedStudents.push({
+                                name: student.name,
+                                error: err.message
+                            });
                         }
-                    });
+                        
+                        // Small delay between requests to avoid rate limiting
+                        if (i < students.length - 1) {
+                            await new Promise(resolve => setTimeout(resolve, 500));
+                        }
+                    }
+
+                    console.log('=== FINAL REPORT COUNT ===');
+                    console.log('Generated reports:', generatedReports.length);
+                    console.log('Failed students:', failedStudents.length);
                     
                     // Show warning if some reports failed
                     if (failedStudents.length > 0) {
                         const failedNames = failedStudents.map(s => s.name).join(', ');
                         setError(`Warning: Could not generate reports for: ${failedNames}. ${generatedReports.length} reports were generated successfully.`);
                     }
-                    
-                    console.log('=== FINAL REPORT COUNT ===');
-                    console.log('Generated reports:', generatedReports.length);
-                    console.log('Failed students:', failedStudents.length);
-                    console.log('Report names:', generatedReports.map(r => r.studentName));
-                    
-                    // Log each report's content length
-                    generatedReports.forEach((r, i) => {
-                        console.log(`Report ${i}: "${r.studentName}" - content length: ${r.report?.length || 0}, content preview: "${(r.report || '').substring(0, 50)}..."`);
-                    });
                     
                     if (generatedReports.length === 0) {
                         throw new Error('No reports could be generated. Please try again.');
