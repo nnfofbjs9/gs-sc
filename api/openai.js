@@ -72,7 +72,7 @@ export default async function handler(req) {
               content: [
                 {
                   type: 'text',
-                  text: 'Extract student gradesheet data from this image. The gradesheet should show students in rows and activities/assessments in columns. Return ONLY a JSON object with this exact format: {"activities": ["Activity 1", "Activity 2", ...], "students": [{"name": "Student Name", "grades": ["A", "B", "C", ...]}, ...]}. The grades array should match the activities array in order. Use "A" for Excellent, "B" for Good, "C" for Needs Practice, "X" for Absent. If a grade is unclear, use empty string "".',
+                  text: 'Extract student gradesheet data from this image. The gradesheet should show students in rows and activities/assessments in columns. Look for roll numbers, student IDs, or serial numbers next to student names. Return ONLY a JSON object with this exact format: {"activities": ["Activity 1", "Activity 2", ...], "students": [{"name": "Student Name", "rollNumber": "1", "grades": ["A", "B", "C", ...]}, ...]}. The rollNumber should be the student\'s roll number, ID, or serial number if visible (as a string). If no roll number is visible, use null. Return ONLY a JSON object with this exact format: {"activities": ["Activity 1", "Activity 2", ...], "students": [{"name": "Student Name", "grades": ["A", "B", "C", ...]}, ...]}. The grades array should match the activities array in order. Use "A" for Excellent, "B" for Good, "C" for Needs Practice, "X" for Absent. If a grade is unclear, use empty string "".',
                 },
                 {
                   type: 'image_url',
