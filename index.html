@@ -783,24 +783,76 @@
             };
 
             const loadSessionReports = async (sessionId) => {
-                const { data, error } = await supabase
+                // Fetch reports with student info
+                const { data: reportsData, error } = await supabase
                     .from('reports')
-                    .select('*, students(student_id, student_name, roll_number, parent_id, parents(parent_id, parent_name, phone))')
+                    .select('report_id, session_id, student_id, report_body, sent_to, sent_at')
                     .eq('session_id', sessionId);
 
-                if (!error && data && data.length > 0) {
-                    setReports(data.map(r => ({
+                if (error || !reportsData || reportsData.length === 0) {
+                    console.log('No reports found for session:', sessionId);
+                    return;
+                }
+
+                // Get student IDs that exist
+                const studentIds = reportsData
+                    .filter(r => r.student_id)
+                    .map(r => r.student_id);
+
+                // Fetch student info
+                let studentsMap = {};
+                let parentsMap = {};
+
+                if (studentIds.length > 0) {
+                    const { data: studentsData } = await supabase
+                        .from('students')
+                        .select('student_id, student_name, roll_number, parent_id')
+                        .in('student_id', studentIds);
+
+                    if (studentsData) {
+                        // Get parent IDs
+                        const parentIds = studentsData
+                            .filter(s => s.parent_id)
+                            .map(s => s.parent_id);
+
+                        // Fetch parents
+                        if (parentIds.length > 0) {
+                            const { data: parentsData } = await supabase
+                                .from('parents')
+                                .select('parent_id, parent_name, phone')
+                                .in('parent_id', parentIds);
+
+                            if (parentsData) {
+                                parentsData.forEach(p => {
+                                    parentsMap[p.parent_id] = p;
+                                });
+                            }
+                        }
+
+                        studentsData.forEach(s => {
+                            studentsMap[s.student_id] = {
+                                ...s,
+                                parent: s.parent_id ? parentsMap[s.parent_id] : null
+                            };
+                        });
+                    }
+                }
+
+                // Combine data
+                setReports(reportsData.map(r => {
+                    const student = r.student_id ? studentsMap[r.student_id] : null;
+                    return {
                         reportId: r.report_id,
-                        studentId: r.students?.student_id || null,
-                        studentName: r.students?.student_name || 'Unknown',
-                        rollNumber: r.students?.roll_number || null,
-                        parentPhone: r.students?.parents?.phone || null,
-                        parentName: r.students?.parents?.parent_name || null,
+                        studentId: r.student_id,
+                        studentName: student?.student_name || 'Unknown',
+                        rollNumber: student?.roll_number || null,
+                        parentPhone: student?.parent?.phone || null,
+                        parentName: student?.parent?.parent_name || null,
                         report: r.report_body,
                         sentAt: r.sent_at
-                    })));
-                    setCurrentScreen('reports');
-                }
+                    };
+                }));
+                setCurrentScreen('reports');
             };
 
             // Compress image before upload
@@ -1066,7 +1118,8 @@
 
                 console.log('=== STARTING REPORT GENERATION ===');
                 console.log('Number of students:', students.length);
-                console.log('Students:', JSON.stringify(students.map(s => s.name)));
+                console.log('Students from OCR:', JSON.stringify(students.map(s => s.name)));
+                console.log('Selected class ID:', selectedClassId);
 
                 try {
                     const sessionId = await saveSession(
@@ -1077,16 +1130,59 @@
                     // Fetch students from database with parent info via join
                     let dbStudents = [];
                     if (selectedClassId) {
-                        const { data: studentData } = await supabase
+                        // First fetch students
+                        const { data: studentData, error: studentError } = await supabase
                             .from('students')
-                            .select('student_id, student_name, roll_number, parent_id, parents(parent_id, parent_name, phone)')
+                            .select('student_id, student_name, roll_number, parent_id')
                             .eq('class_id', selectedClassId);
-                        dbStudents = studentData || [];
+
+                        if (studentError) {
+                            console.error('Error fetching students:', studentError);
+                        }
+
+                        console.log('=== RAW DATABASE RESPONSE ===');
+                        console.log('studentData:', studentData);
+
+                        if (studentData && studentData.length > 0) {
+                            // Now fetch parent info for students that have parent_id
+                            const parentIds = studentData
+                                .filter(s => s.parent_id)
+                                .map(s => s.parent_id);
+
+                            let parentsMap = {};
+                            if (parentIds.length > 0) {
+                                const { data: parentsData } = await supabase
+                                    .from('parents')
+                                    .select('parent_id, parent_name, phone')
+                                    .in('parent_id', parentIds);
+
+                                console.log('Parents data:', parentsData);
+
+                                if (parentsData) {
+                                    parentsData.forEach(p => {
+                                        parentsMap[p.parent_id] = p;
+                                    });
+                                }
+                            }
+
+                            // Combine student data with parent info
+                            dbStudents = studentData.map(s => ({
+                                ...s,
+                                parents: s.parent_id ? parentsMap[s.parent_id] : null
+                            }));
+                        }
+                    } else {
+                        console.warn('No class selected! Cannot fetch students from database.');
                     }
 
                     console.log('=== DATABASE STUDENTS ===');
                     console.log('Found', dbStudents.length, 'students in database for this class');
-                    console.log(dbStudents.map(s => ({ name: s.student_name, roll: s.roll_number, parentPhone: s.parents?.phone })));
+                    console.log('DB Students:', dbStudents.map(s => ({
+                        name: s.student_name,
+                        roll: s.roll_number,
+                        parentId: s.parent_id,
+                        parentPhone: s.parents?.phone
+                    })));
 
                     // Helper function to match OCR student with database student
                     // Matches by roll_number first (if available), then by name
@@ -1094,21 +1190,52 @@
                         const ocrName = ocrStudent.name?.toLowerCase().trim();
                         const ocrRoll = ocrStudent.rollNumber?.toString().trim();
 
+                        console.log(`Trying to match OCR student: "${ocrName}" (roll: ${ocrRoll || 'none'})`);
+
                         // First try to match by roll number if available
                         if (ocrRoll) {
                             const matchByRoll = dbStudents.find(s =>
                                 s.roll_number?.toString().trim() === ocrRoll
                             );
-                            if (matchByRoll) return matchByRoll;
+                            if (matchByRoll) {
+                                console.log(`  -> Matched by roll number to: ${matchByRoll.student_name}`);
+                                return matchByRoll;
+                            }
                         }
 
-                        // Fallback to name matching
-                        return dbStudents.find(s => {
-                            const dbName = s.student_name?.toLowerCase().trim();
-                            return dbName === ocrName ||
-                                dbName.includes(ocrName) ||
-                                ocrName.includes(dbName);
-                        });
+                        // Fallback to name matching - try multiple strategies
+                        for (const dbStudent of dbStudents) {
+                            const dbName = dbStudent.student_name?.toLowerCase().trim();
+
+                            // Exact match
+                            if (dbName === ocrName) {
+                                console.log(`  -> Exact match: ${dbStudent.student_name}`);
+                                return dbStudent;
+                            }
+
+                            // OCR name contains DB name (e.g., "John Smith" contains "John")
+                            if (ocrName && dbName && ocrName.includes(dbName)) {
+                                console.log(`  -> OCR contains DB name: ${dbStudent.student_name}`);
+                                return dbStudent;
+                            }
+
+                            // DB name contains OCR name
+                            if (ocrName && dbName && dbName.includes(ocrName)) {
+                                console.log(`  -> DB contains OCR name: ${dbStudent.student_name}`);
+                                return dbStudent;
+                            }
+
+                            // First name match (first word)
+                            const ocrFirstName = ocrName?.split(/\s+/)[0];
+                            const dbFirstName = dbName?.split(/\s+/)[0];
+                            if (ocrFirstName && dbFirstName && ocrFirstName === dbFirstName && ocrFirstName.length > 2) {
+                                console.log(`  -> First name match: ${dbStudent.student_name}`);
+                                return dbStudent;
+                            }
+                        }
+
+                        console.log(`  -> No match found for: ${ocrName}`);
+                        return null;
                     };
 
                     // Validate students against database and track unmatched
