@@ -67,3 +67,34 @@ vercel --prod
 
 - `index.html` - Main React app with Supabase auth
 - `api/openai.js` - Vercel Edge Function using gpt-5-mini model
+
+## WhatsApp Integration
+
+The app supports sending reports directly to parents via WhatsApp. To use this feature:
+
+### Database Setup
+
+Add the `parent_phone` column to your `students` table in Supabase:
+
+```sql
+ALTER TABLE students ADD COLUMN parent_phone VARCHAR(20);
+```
+
+### Phone Number Format
+
+- Store phone numbers with country code (e.g., `6591234567` for Singapore)
+- If only 8 digits are provided (local Singapore number), the app will automatically prepend `65`
+- The app uses the WhatsApp Web API (`wa.me`) to open chats
+
+### How It Works
+
+1. When generating reports, the app matches students from the gradesheet to database records
+2. If a `parent_phone` is found, the WhatsApp button will open a chat with that number
+3. If no phone number is stored, the button opens WhatsApp with the message so you can select a contact manually
+
+### Features
+
+- **Edit Reports**: Teachers can edit the AI-generated report text before sending
+- **Save Changes**: Save edited reports back to the database
+- **Send via WhatsApp**: Individual button per student to send that report
+- **Send All via WhatsApp**: Bulk send to all parents with phone numbers (opens multiple tabs)
