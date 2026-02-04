@@ -46,7 +46,7 @@ serve(async (req) => {
           "Authorization": `Bearer ${OPENAI_API_KEY}`,
         },
         body: JSON.stringify({
-          model: "gpt-4o-mini",
+          model: "gpt-5-nano",
           messages: [
             {
               role: "user",
@@ -89,7 +89,7 @@ serve(async (req) => {
           "Authorization": `Bearer ${OPENAI_API_KEY}`,
         },
         body: JSON.stringify({
-          model: "gpt-4o-mini",
+          model: "gpt-5-nano",
           messages: [
             {
               role: "system",
