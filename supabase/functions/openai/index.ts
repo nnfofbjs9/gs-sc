@@ -1,8 +1,6 @@
-export const config = {
-  runtime: 'edge',
-};
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
 
 const SYSTEM_PROMPT = `You are an AI teaching assistant for a preschool enrichment program. You analyze teacher-provided skill ratings for each child and generate friendly, parent-facing feedback and short home activities using the PlayPack – a box of educational toys. There are 4 ratings: Excellent, Good, Needs Practice and Absent for class (abbreviated A, B, C and X, respectively). Keep the tone warm, supportive, and encouraging. Prioritize educational tasks for those fields in which the child has done poorly, but also those where they have done very well – thus encouraging them in easy tasks while getting them to improve in weak areas.
 The kit contains the following elements beads, playdoh, number tiles (dominos with numbers on them but without dots). Don't require much extra work from the parent even as little as asking them to draw something.
@@ -26,56 +24,39 @@ Avoid buzzwords and instead use plain English.
 Use jargon where relevant.
 Avoid being salesy or overly enthusiastic and instead express calm confidence.`;
 
-export default async function handler(req) {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, {
-      status: 200,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-      },
-    });
-  }
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, apikey, x-client-info",
+};
 
-  if (req.method !== 'POST') {
-    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
-      status: 405,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
-
-  const authHeader = req.headers.get('Authorization');
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-      status: 401,
-      headers: { 'Content-Type': 'application/json' },
-    });
+serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { status: 200, headers: corsHeaders });
   }
 
   try {
-    const body = await req.json();
-    const { action, data } = body;
+    const { action, data } = await req.json();
 
-    if (action === 'extract') {
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
+    if (action === "extract") {
+      const response = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${OPENAI_API_KEY}`,
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${OPENAI_API_KEY}`,
         },
         body: JSON.stringify({
-          model: 'gpt-5-mini',
+          model: "gpt-4o-mini",
           messages: [
             {
-              role: 'user',
+              role: "user",
               content: [
                 {
-                  type: 'text',
+                  type: "text",
                   text: 'Extract student gradesheet data from this image. The gradesheet should show students in rows and activities/assessments in columns. Look for roll numbers, student IDs, or serial numbers next to student names. Return ONLY a JSON object with this exact format: {"activities": ["Activity 1", "Activity 2", ...], "students": [{"name": "Student Name", "rollNumber": "1", "grades": ["A", "B", "C", ...]}, ...]}. The rollNumber should be the student\'s roll number, ID, or serial number if visible (as a string). If no roll number is visible, use null. The grades array should match the activities array in order. Use "A" for Excellent, "B" for Good, "C" for Needs Practice, "X" for Absent. If a grade is unclear, use empty string "".',
                 },
                 {
-                  type: 'image_url',
+                  type: "image_url",
                   image_url: {
                     url: `data:image/jpeg;base64,${data.image}`,
                   },
@@ -83,78 +64,69 @@ export default async function handler(req) {
               ],
             },
           ],
-          max_completion_tokens: 7000,
+          max_tokens: 10000,
         }),
       });
 
       const result = await response.json();
-      
+
       if (result.error) {
         throw new Error(result.error.message);
       }
 
       return new Response(JSON.stringify(result), {
         status: 200,
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-        },
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
 
-    } else if (action === 'generate_report') {
+    } else if (action === "generate_report") {
       const { studentName, activityGrades } = data;
 
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
+      const response = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${OPENAI_API_KEY}`,
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${OPENAI_API_KEY}`,
         },
         body: JSON.stringify({
-          model: 'gpt-5-nano',
+          model: "gpt-4o-mini",
           messages: [
             {
-              role: 'system',
+              role: "system",
               content: SYSTEM_PROMPT,
             },
             {
-              role: 'user',
+              role: "user",
               content: `Child: ${studentName}\n\nActivity Ratings:\n${activityGrades}\n\nFor each child, generate:\n1. A 3-4 line summary in friendly tone.\n2. 3-4 fun, 15-minute home activities.\nKeep total reply per child under 200 words.\nVery important: The response must not contain m-dashes ("—"). Replace them with colons where appropriate.`,
             },
           ],
-          max_completion_tokens: 4000,
+          max_tokens: 10000,
         }),
       });
 
       const result = await response.json();
-      
+
       if (result.error) {
         throw new Error(result.error.message);
       }
 
       return new Response(JSON.stringify(result), {
         status: 200,
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-        },
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
 
     } else {
-      return new Response(JSON.stringify({ error: 'Invalid action' }), {
+      return new Response(JSON.stringify({ error: "Invalid action" }), {
         status: 400,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
   } catch (error) {
-    console.error('API Error:', error);
+    console.error("API Error:", error);
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-      },
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
-}
+});
