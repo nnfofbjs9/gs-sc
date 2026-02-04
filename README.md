@@ -70,31 +70,42 @@ vercel --prod
 
 ## WhatsApp Integration
 
-The app supports sending reports directly to parents via WhatsApp. To use this feature:
+The app supports sending reports directly to parents via WhatsApp.
 
-### Database Setup
+### Database Requirements
 
-Add the `parent_phone` column to your `students` table in Supabase:
+The app uses the existing schema:
+- `students` table with `parent_id` foreign key
+- `parents` table with `phone` column
 
-```sql
-ALTER TABLE students ADD COLUMN parent_phone VARCHAR(20);
-```
+Parent phone numbers are fetched via: `students.parent_id` -> `parents.phone`
+
+### Student Matching
+
+Students from scanned gradesheets are matched to database records by:
+1. **Roll number** (if available in OCR data)
+2. **Name matching** (fallback - case-insensitive, partial matching)
+
+Students not found in the database will be flagged with "Not in DB" and their reports won't be saved.
 
 ### Phone Number Format
 
 - Store phone numbers with country code (e.g., `6591234567` for Singapore)
 - If only 8 digits are provided (local Singapore number), the app will automatically prepend `65`
-- The app uses the WhatsApp Web API (`wa.me`) to open chats
+- The app uses the WhatsApp Click-to-Chat API (`wa.me`) to open chats
 
 ### How It Works
 
 1. When generating reports, the app matches students from the gradesheet to database records
-2. If a `parent_phone` is found, the WhatsApp button will open a chat with that number
-3. If no phone number is stored, the button opens WhatsApp with the message so you can select a contact manually
+2. Parent phone is fetched via the `parents` table join
+3. If a phone number is found, the WhatsApp button opens a chat with that number
+4. If no phone number is stored, WhatsApp opens with the message so you can manually select a contact
+5. When sent, the `reports.sent_to` and `reports.sent_at` fields are updated
 
 ### Features
 
 - **Edit Reports**: Teachers can edit the AI-generated report text before sending
-- **Save Changes**: Save edited reports back to the database
+- **Save Changes**: Save edited reports back to the database (only for students matched in DB)
 - **Send via WhatsApp**: Individual button per student to send that report
 - **Send All via WhatsApp**: Bulk send to all parents with phone numbers (opens multiple tabs)
+- **Sent Status**: Reports show "Sent" badge after WhatsApp is opened

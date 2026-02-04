@@ -785,15 +785,19 @@
             const loadSessionReports = async (sessionId) => {
                 const { data, error } = await supabase
                     .from('reports')
-                    .select('*, students(student_id, student_name, parent_phone)')
+                    .select('*, students(student_id, student_name, roll_number, parent_id, parents(parent_id, parent_name, phone))')
                     .eq('session_id', sessionId);
 
                 if (!error && data && data.length > 0) {
                     setReports(data.map(r => ({
+                        reportId: r.report_id,
                         studentId: r.students?.student_id || null,
                         studentName: r.students?.student_name || 'Unknown',
-                        parentPhone: r.students?.parent_phone || null,
-                        report: r.report_body
+                        rollNumber: r.students?.roll_number || null,
+                        parentPhone: r.students?.parents?.phone || null,
+                        parentName: r.students?.parents?.parent_name || null,
+                        report: r.report_body,
+                        sentAt: r.sent_at
                     })));
                     setCurrentScreen('reports');
                 }
@@ -1006,9 +1010,17 @@
                 setStudents(updated);
             };
 
-            // Save reports to database
+            // Save reports to database (only those with valid student_id)
             const saveReports = async (sessionId, generatedReports) => {
                 if (!sessionId) return;
+
+                // Filter to only reports with valid student_id (matched in database)
+                const reportsToSave = generatedReports.filter(r => r.studentId);
+
+                if (reportsToSave.length === 0) {
+                    console.warn('No reports saved - none had valid student_id');
+                    return;
+                }
 
                 try {
                     await supabase
@@ -1016,19 +1028,32 @@
                         .delete()
                         .eq('session_id', sessionId);
 
-                    const reportRecords = generatedReports.map(r => ({
+                    const reportRecords = reportsToSave.map(r => ({
                         session_id: sessionId,
-                        student_id: r.studentId || null,
+                        student_id: r.studentId,
                         report_body: r.report,
                         generated_by: user.id
                     }));
 
-                    await supabase.from('reports').insert(reportRecords);
+                    const { data: insertedReports } = await supabase
+                        .from('reports')
+                        .insert(reportRecords)
+                        .select();
+
+                    // Update the reports state with database IDs
+                    if (insertedReports) {
+                        setReports(prev => prev.map(r => {
+                            const inserted = insertedReports.find(ir => ir.student_id === r.studentId);
+                            return inserted ? { ...r, reportId: inserted.report_id } : r;
+                        }));
+                    }
 
                     await supabase
                         .from('sessions')
                         .update({ status: 'completed' })
                         .eq('session_id', sessionId);
+
+                    console.log(`Saved ${reportsToSave.length} reports to database`);
                 } catch (err) {
                     console.error('Failed to save reports:', err);
                 }
@@ -1049,25 +1074,64 @@
                         uploadedImage
                     );
 
-                    // Fetch students from database to get parent phone numbers
+                    // Fetch students from database with parent info via join
                     let dbStudents = [];
                     if (selectedClassId) {
                         const { data: studentData } = await supabase
                             .from('students')
-                            .select('student_id, student_name, parent_phone')
+                            .select('student_id, student_name, roll_number, parent_id, parents(parent_id, parent_name, phone)')
                             .eq('class_id', selectedClassId);
                         dbStudents = studentData || [];
                     }
 
-                    // Helper function to match OCR student name with database student
-                    const findDbStudent = (ocrName) => {
-                        const normalizedOcrName = ocrName.toLowerCase().trim();
-                        return dbStudents.find(s =>
-                            s.student_name.toLowerCase().trim() === normalizedOcrName ||
-                            s.student_name.toLowerCase().includes(normalizedOcrName) ||
-                            normalizedOcrName.includes(s.student_name.toLowerCase())
-                        );
+                    console.log('=== DATABASE STUDENTS ===');
+                    console.log('Found', dbStudents.length, 'students in database for this class');
+                    console.log(dbStudents.map(s => ({ name: s.student_name, roll: s.roll_number, parentPhone: s.parents?.phone })));
+
+                    // Helper function to match OCR student with database student
+                    // Matches by roll_number first (if available), then by name
+                    const findDbStudent = (ocrStudent) => {
+                        const ocrName = ocrStudent.name?.toLowerCase().trim();
+                        const ocrRoll = ocrStudent.rollNumber?.toString().trim();
+
+                        // First try to match by roll number if available
+                        if (ocrRoll) {
+                            const matchByRoll = dbStudents.find(s =>
+                                s.roll_number?.toString().trim() === ocrRoll
+                            );
+                            if (matchByRoll) return matchByRoll;
+                        }
+
+                        // Fallback to name matching
+                        return dbStudents.find(s => {
+                            const dbName = s.student_name?.toLowerCase().trim();
+                            return dbName === ocrName ||
+                                dbName.includes(ocrName) ||
+                                ocrName.includes(dbName);
+                        });
                     };
+
+                    // Validate students against database and track unmatched
+                    const unmatchedStudents = [];
+                    const matchedStudents = [];
+
+                    students.forEach(student => {
+                        const dbStudent = findDbStudent(student);
+                        if (dbStudent) {
+                            matchedStudents.push({
+                                ...student,
+                                dbStudent
+                            });
+                        } else {
+                            unmatchedStudents.push(student.name);
+                        }
+                    });
+
+                    // Warn about unmatched students
+                    if (unmatchedStudents.length > 0) {
+                        console.warn('=== UNMATCHED STUDENTS ===');
+                        console.warn('These students from the gradesheet were not found in the database:', unmatchedStudents);
+                    }
 
                     // Generate reports in parallel for speed
                     const reportPromises = students.map(async (student) => {
@@ -1086,14 +1150,17 @@
 
                         const content = data.choices?.[0]?.message?.content?.trim() || '';
 
-                        // Try to match with database student to get phone number
-                        const dbStudent = findDbStudent(student.name);
+                        // Try to match with database student to get info
+                        const dbStudent = findDbStudent(student);
 
                         return {
                             studentName: student.name,
                             studentId: dbStudent?.student_id || null,
-                            parentPhone: dbStudent?.parent_phone || null,
+                            rollNumber: dbStudent?.roll_number || null,
+                            parentPhone: dbStudent?.parents?.phone || null,
+                            parentName: dbStudent?.parents?.parent_name || null,
                             report: content,
+                            matchedInDb: !!dbStudent,
                             _rawResponse: data  // Keep raw response for debugging
                         };
                     });
@@ -1111,8 +1178,11 @@
                                 generatedReports.push({
                                     studentId: report.studentId,
                                     studentName: report.studentName,
+                                    rollNumber: report.rollNumber,
                                     parentPhone: report.parentPhone,
-                                    report: report.report
+                                    parentName: report.parentName,
+                                    report: report.report,
+                                    matchedInDb: report.matchedInDb
                                 });
                             } else {
                                 console.error(`Empty content for ${report.studentName}. Raw response:`, report._rawResponse);
@@ -1132,15 +1202,24 @@
 
                     console.log('=== FINAL REPORT COUNT ===');
                     console.log('Generated reports:', generatedReports.length);
+                    console.log('Matched in DB:', generatedReports.filter(r => r.matchedInDb).length);
+                    console.log('Not matched in DB:', generatedReports.filter(r => !r.matchedInDb).length);
                     console.log('Failed students:', failedStudents.length);
                     if (failedStudents.length > 0) {
                         console.log('Failed student details:', failedStudents);
                     }
 
-                    // Show warning if some reports failed
+                    // Build warning message
+                    let warningMsg = '';
                     if (failedStudents.length > 0) {
                         const failedNames = failedStudents.map(s => s.name).join(', ');
-                        setError(`Warning: Could not generate reports for: ${failedNames}. ${generatedReports.length} reports were generated successfully.`);
+                        warningMsg += `Could not generate reports for: ${failedNames}. `;
+                    }
+                    if (unmatchedStudents.length > 0) {
+                        warningMsg += `Students not found in database (reports won't be saved): ${unmatchedStudents.join(', ')}. `;
+                    }
+                    if (warningMsg) {
+                        setError(`Warning: ${warningMsg}${generatedReports.length} reports were generated.`);
                     }
 
                     if (generatedReports.length === 0) {
@@ -1199,6 +1278,15 @@
                     return;
                 }
 
+                // Filter to only reports with valid student_id (matched in database)
+                const reportsToSave = reports.filter(r => r.studentId);
+                const unmatchedReports = reports.filter(r => !r.studentId);
+
+                if (reportsToSave.length === 0) {
+                    setError('No reports can be saved - none of the students were matched in the database.');
+                    return;
+                }
+
                 setIsSavingReports(true);
                 setError('');
 
@@ -1209,22 +1297,36 @@
                         .delete()
                         .eq('session_id', currentSessionId);
 
-                    // Insert updated reports
-                    const reportRecords = reports.map(r => ({
+                    // Insert updated reports (only those with valid student_id)
+                    const reportRecords = reportsToSave.map(r => ({
                         session_id: currentSessionId,
-                        student_id: r.studentId || null,
+                        student_id: r.studentId,
                         report_body: r.report,
                         generated_by: user.id
                     }));
 
-                    const { error: insertError } = await supabase
+                    const { data: insertedReports, error: insertError } = await supabase
                         .from('reports')
-                        .insert(reportRecords);
+                        .insert(reportRecords)
+                        .select();
 
                     if (insertError) throw insertError;
 
-                    setSaveStatus('Reports saved!');
-                    setTimeout(() => setSaveStatus(''), 2000);
+                    // Update local state with report IDs from database
+                    if (insertedReports) {
+                        const updatedReports = reports.map(r => {
+                            const inserted = insertedReports.find(ir => ir.student_id === r.studentId);
+                            return inserted ? { ...r, reportId: inserted.report_id } : r;
+                        });
+                        setReports(updatedReports);
+                    }
+
+                    let message = `${reportsToSave.length} report(s) saved!`;
+                    if (unmatchedReports.length > 0) {
+                        message += ` (${unmatchedReports.length} skipped - students not in database)`;
+                    }
+                    setSaveStatus(message);
+                    setTimeout(() => setSaveStatus(''), 3000);
                 } catch (err) {
                     setError('Failed to save reports: ' + err.message);
                 } finally {
@@ -1233,16 +1335,17 @@
             };
 
             // Send single report via WhatsApp
-            const sendViaWhatsApp = (report) => {
+            const sendViaWhatsApp = async (report, index) => {
                 // Format the message for WhatsApp
                 const message = `Report for ${report.studentName}\n\n${report.report}`;
                 const encodedMessage = encodeURIComponent(message);
 
+                let phone = null;
                 // If parent phone exists, open WhatsApp directly to that number
                 // Otherwise, open WhatsApp with the message to let user select contact
                 if (report.parentPhone) {
                     // Remove any non-numeric characters and ensure it starts with country code
-                    let phone = report.parentPhone.replace(/\D/g, '');
+                    phone = report.parentPhone.replace(/\D/g, '');
                     // If phone doesn't start with country code, assume Singapore (+65)
                     if (phone.length === 8) {
                         phone = '65' + phone;
@@ -1251,6 +1354,28 @@
                 } else {
                     // No phone number - open WhatsApp with message, user will select contact
                     window.open(`https://wa.me/?text=${encodedMessage}`, '_blank');
+                }
+
+                // Update sent_to and sent_at in database if we have a reportId
+                if (report.reportId && report.studentId) {
+                    try {
+                        await supabase
+                            .from('reports')
+                            .update({
+                                sent_to: phone ? `whatsapp:${phone}` : 'whatsapp:manual',
+                                sent_at: new Date().toISOString()
+                            })
+                            .eq('report_id', report.reportId);
+
+                        // Update local state to reflect sent status
+                        if (typeof index === 'number') {
+                            const updated = [...reports];
+                            updated[index] = { ...updated[index], sentAt: new Date().toISOString() };
+                            setReports(updated);
+                        }
+                    } catch (err) {
+                        console.error('Failed to update sent status:', err);
+                    }
                 }
             };
 
@@ -1547,24 +1672,38 @@
 
                             <div className="space-y-4">
                                 {reports.map((report, index) => (
-                                    <div key={index} className="bg-white rounded-lg shadow p-6">
+                                    <div key={index} className={`bg-white rounded-lg shadow p-6 ${!report.studentId ? 'border-l-4 border-amber-400' : ''}`}>
                                         <div className="flex justify-between items-start mb-3">
                                             <div>
-                                                <h3 className="text-xl font-semibold text-gray-800">{report.studentName}</h3>
+                                                <div className="flex items-center gap-2">
+                                                    <h3 className="text-xl font-semibold text-gray-800">{report.studentName}</h3>
+                                                    {report.sentAt && (
+                                                        <span className="px-2 py-0.5 text-xs bg-green-100 text-green-700 rounded">Sent</span>
+                                                    )}
+                                                    {!report.studentId && (
+                                                        <span className="px-2 py-0.5 text-xs bg-amber-100 text-amber-700 rounded" title="This student was not found in the database">Not in DB</span>
+                                                    )}
+                                                </div>
+                                                {report.parentName && (
+                                                    <p className="text-sm text-gray-600">Parent: {report.parentName}</p>
+                                                )}
                                                 {report.parentPhone && (
-                                                    <p className="text-sm text-gray-500">Parent: {report.parentPhone}</p>
+                                                    <p className="text-sm text-gray-500">Phone: {report.parentPhone}</p>
+                                                )}
+                                                {!report.studentId && (
+                                                    <p className="text-xs text-amber-600 mt-1">Report won't be saved - student not found in database</p>
                                                 )}
                                             </div>
                                             <div className="flex gap-2">
                                                 <button
-                                                    onClick={() => sendViaWhatsApp(report)}
+                                                    onClick={() => sendViaWhatsApp(report, index)}
                                                     className="px-3 py-2 bg-green-500 text-white text-sm rounded hover:bg-green-600 transition flex items-center gap-1"
                                                     title={report.parentPhone ? `Send to ${report.parentPhone}` : 'No phone number - will open WhatsApp to select contact'}
                                                 >
                                                     <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                                                         <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
                                                     </svg>
-                                                    WhatsApp
+                                                    {report.sentAt ? 'Resend' : 'WhatsApp'}
                                                 </button>
                                                 <button
                                                     onClick={() => downloadReport(report.studentName, report.report)}
