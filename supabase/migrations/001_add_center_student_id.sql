@@ -80,7 +80,7 @@ CREATE TRIGGER trg_generate_center_student_id
 CREATE OR REPLACE FUNCTION get_center_id_for_student(p_class_id UUID)
 RETURNS UUID AS $$
   SELECT center_id FROM public.classes WHERE class_id = p_class_id;
-$$ LANGUAGE sql STABLE;
+$$ LANGUAGE sql IMMUTABLE;
 
 -- Unique index: no two students in the same center can share a center_student_id
 DROP INDEX IF EXISTS idx_unique_center_student_id;
