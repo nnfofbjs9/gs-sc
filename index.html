@@ -1184,19 +1184,43 @@
                         parentPhone: s.parents?.phone
                     })));
 
+                    // Helper function to normalize roll numbers for comparison
+                    // Handles leading zeros, whitespace, and type differences
+                    const normalizeRollNumber = (roll) => {
+                        if (roll === null || roll === undefined || roll === '') return null;
+                        // Convert to string, trim whitespace, remove leading zeros
+                        const str = String(roll).trim();
+                        // Try to parse as integer to normalize (removes leading zeros)
+                        const num = parseInt(str, 10);
+                        if (!isNaN(num)) {
+                            return String(num); // "01" -> "1", "001" -> "1"
+                        }
+                        return str.toLowerCase(); // For non-numeric roll numbers
+                    };
+
                     // Helper function to match OCR student with database student
                     // Matches by roll_number first (if available), then by name
                     const findDbStudent = (ocrStudent) => {
                         const ocrName = ocrStudent.name?.toLowerCase().trim();
-                        const ocrRoll = ocrStudent.rollNumber?.toString().trim();
+                        const ocrRoll = normalizeRollNumber(ocrStudent.rollNumber);
 
-                        console.log(`Trying to match OCR student: "${ocrName}" (roll: ${ocrRoll || 'none'})`);
+                        console.log(`Trying to match OCR student: "${ocrName}" (raw roll: "${ocrStudent.rollNumber}", normalized: "${ocrRoll}")`);
+
+                        // Debug: Show all DB roll numbers for comparison
+                        console.log('  DB roll numbers available:', dbStudents.map(s => ({
+                            name: s.student_name,
+                            rawRoll: s.roll_number,
+                            normalizedRoll: normalizeRollNumber(s.roll_number)
+                        })));
 
                         // First try to match by roll number if available
                         if (ocrRoll) {
-                            const matchByRoll = dbStudents.find(s =>
-                                s.roll_number?.toString().trim() === ocrRoll
-                            );
+                            const matchByRoll = dbStudents.find(s => {
+                                const dbRoll = normalizeRollNumber(s.roll_number);
+                                const isMatch = dbRoll === ocrRoll;
+                                console.log(`    Comparing OCR roll "${ocrRoll}" with DB roll "${dbRoll}" (raw: "${s.roll_number}"): ${isMatch ? 'MATCH' : 'no match'}`);
+                                return isMatch;
+                            });
                             if (matchByRoll) {
                                 console.log(`  -> Matched by roll number to: ${matchByRoll.student_name}`);
                                 return matchByRoll;
