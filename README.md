@@ -83,8 +83,8 @@ Parent phone numbers are fetched via: `students.parent_id` -> `parents.phone`
 ### Student Matching
 
 Students from scanned gradesheets are matched to database records by:
-1. **Roll number** (if available in OCR data)
-2. **Name matching** (fallback - case-insensitive, partial matching)
+1. **Center Student ID** (a 4-digit, center-scoped identifier written on the worksheet). This match is performed **center-wide**, so a student visiting from another class within the same center will still be matched.
+2. **Name matching** (fallback - case-insensitive, partial matching, class-level only)
 
 Students not found in the database will be flagged with "Not in DB" and their reports won't be saved.
 
@@ -109,3 +109,31 @@ Students not found in the database will be flagged with "Not in DB" and their re
 - **Send via WhatsApp**: Individual button per student to send that report
 - **Send All via WhatsApp**: Bulk send to all parents with phone numbers (opens multiple tabs)
 - **Sent Status**: Reports show "Sent" badge after WhatsApp is opened
+
+## Caveats
+
+### Center Student ID (`center_student_id`)
+
+Each student is assigned a unique 4-digit identifier scoped to their center (e.g., `0001`, `0042`). This ID is:
+- **Auto-generated** when a new student is added (via a database trigger).
+- **Unique within a center** -- no two students at the same center share an ID.
+- **Stable** -- it never changes, even if the student moves between classes within the center.
+
+Teachers write this ID on the physical worksheet. OCR extracts it and uses it as the primary matching key.
+
+### Students Temporarily Attending a Different Class
+
+A student can attend 1-2 sessions of a different class without any database changes. The teacher simply writes the student's `center_student_id` on that class's worksheet. The matching logic searches **all students in the center** (not just the selected class) when matching by ID, so the student will be found and their report will be generated and linked correctly.
+
+The session record still belongs to the class it was created for. The student's home `class_id` in the `students` table does not change.
+
+### Students Transferring to a Different Center
+
+If a student permanently moves to a different center:
+1. Add them as a new student at the new center (they will receive a new `center_student_id` at that center).
+2. Optionally deactivate or remove their record at the old center.
+3. Their historical reports at the old center remain intact.
+
+### Capacity
+
+Each center supports up to 9,999 students (IDs `0001`-`9999`). The trigger will raise an error if this limit is exceeded.
