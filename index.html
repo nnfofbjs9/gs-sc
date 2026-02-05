@@ -1190,7 +1190,7 @@
                         const ocrName = ocrStudent.name?.toLowerCase().trim();
                         const ocrRoll = ocrStudent.rollNumber?.toString().trim();
 
-                        console.log(`Trying to match OCR student: "${ocrName}" (roll: ${ocrRoll || 'none'}). student roll: ${s.roll_number}`);
+                        console.log(`Trying to match OCR student: "${ocrName}" (roll: ${ocrRoll || 'none'}).`);
                         
                         // First try to match by roll number if available
                         if (ocrRoll) {
