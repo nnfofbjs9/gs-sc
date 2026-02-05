@@ -75,9 +75,11 @@ CREATE TRIGGER trg_generate_center_student_id
 
 -- 5. Add a unique constraint per center (using a function-based approach)
 -- Since center_id lives on classes, we create a unique index via a helper function
+-- NOTE: Must use schema-qualified public.classes so PostgreSQL can resolve
+-- the table reference when inlining the function for the index expression.
 CREATE OR REPLACE FUNCTION get_center_id_for_student(p_class_id UUID)
 RETURNS UUID AS $$
-  SELECT center_id FROM classes WHERE class_id = p_class_id;
+  SELECT center_id FROM public.classes WHERE class_id = p_class_id;
 $$ LANGUAGE sql STABLE;
 
 -- Unique index: no two students in the same center can share a center_student_id
