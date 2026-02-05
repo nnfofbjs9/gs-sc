@@ -58,7 +58,8 @@ serve(async (req) => {
 2. Student names
 3. Activity/assessment names (usually column headers)
 4. Grades for each student per activity
-5. Session number or class number if visible anywhere on the sheet
+5. Class number on the top left of the sheet which will start with 3 zeroes
+6. Session number visible on the top left of the sheet
 
 Return ONLY a valid JSON object in this EXACT format:
 {
