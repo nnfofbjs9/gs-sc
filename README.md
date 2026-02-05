@@ -66,7 +66,7 @@ vercel --prod
 ## Files Included
 
 - `index.html` - Main React app with Supabase auth
-- `api/openai.js` - Vercel Edge Function using gpt-5-mini model
+- `supabase/functions/openai/index.ts` - Supabase Edge Function for OpenAI calls
 
 ## WhatsApp Integration
 
