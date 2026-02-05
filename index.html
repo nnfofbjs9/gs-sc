@@ -754,6 +754,23 @@
             const [classes, setClasses] = useState([]);
             const [saveStatus, setSaveStatus] = useState('');
             const [isSavingReports, setIsSavingReports] = useState(false);
+            const [colWidths, setColWidths] = useState({ name: 180, centerId: 120 });
+
+            const startResize = (colKey, e) => {
+                e.preventDefault();
+                const startX = e.clientX;
+                const startWidth = colWidths[colKey];
+                const onMouseMove = (ev) => {
+                    const newWidth = Math.max(80, startWidth + ev.clientX - startX);
+                    setColWidths(prev => ({ ...prev, [colKey]: newWidth }));
+                };
+                const onMouseUp = () => {
+                    document.removeEventListener('mousemove', onMouseMove);
+                    document.removeEventListener('mouseup', onMouseUp);
+                };
+                document.addEventListener('mousemove', onMouseMove);
+                document.addEventListener('mouseup', onMouseUp);
+            };
 
             // Load teacher's classes on mount
             useEffect(() => {
@@ -1027,6 +1044,12 @@
                 setStudents(updated);
             };
 
+            const updateStudentRollNumber = (index, value) => {
+                const updated = [...students];
+                updated[index].rollNumber = value;
+                setStudents(updated);
+            };
+
             const updateActivityName = (index, value) => {
                 const updated = [...activities];
                 updated[index] = value;
@@ -1034,9 +1057,10 @@
             };
 
             const addStudent = () => {
-                setStudents([...students, { 
-                    name: '', 
-                    grades: new Array(activities.length).fill('') 
+                setStudents([...students, {
+                    name: '',
+                    rollNumber: '',
+                    grades: new Array(activities.length).fill('')
                 }]);
             };
 
@@ -1677,8 +1701,13 @@
                                 <table className="w-full border-collapse">
                                     <thead className="bg-gray-100 border-b-2 border-gray-300">
                                         <tr>
-                                            <th className="px-3 py-3 text-left text-sm font-semibold text-gray-700 border-r-2 border-gray-300 sticky left-0 bg-gray-100">
+                                            <th className="px-3 py-3 text-left text-sm font-semibold text-gray-700 border-r border-gray-300 sticky left-0 bg-gray-100" style={{ width: colWidths.name, minWidth: 80, position: 'relative' }}>
                                                 Student Name
+                                                <div onMouseDown={(e) => startResize('name', e)} style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 5, cursor: 'col-resize', background: 'transparent' }} />
+                                            </th>
+                                            <th className="px-3 py-3 text-left text-sm font-semibold text-gray-700 border-r border-gray-300 bg-gray-100" style={{ width: colWidths.centerId, minWidth: 80, position: 'relative' }}>
+                                                Center Student ID
+                                                <div onMouseDown={(e) => startResize('centerId', e)} style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 5, cursor: 'col-resize', background: 'transparent' }} />
                                             </th>
                                             {activities.map((activity, index) => (
                                                 <th key={index} className="px-3 py-3 text-center text-sm font-semibold text-gray-700 min-w-[140px]">
@@ -1709,13 +1738,22 @@
                                     <tbody>
                                         {students.map((student, studentIndex) => (
                                             <tr key={studentIndex} className="border-b hover:bg-gray-50">
-                                                <td className="px-3 py-3 border-r-2 border-gray-300 sticky left-0 bg-white">
+                                                <td className="px-3 py-3 border-r border-gray-300 sticky left-0 bg-white" style={{ width: colWidths.name }}>
                                                     <input
                                                         type="text"
                                                         value={student.name}
                                                         onChange={(e) => updateStudentName(studentIndex, e.target.value)}
                                                         className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-brand-teal"
                                                         placeholder="Student name"
+                                                    />
+                                                </td>
+                                                <td className="px-3 py-3 border-r border-gray-300 bg-white" style={{ width: colWidths.centerId }}>
+                                                    <input
+                                                        type="text"
+                                                        value={student.rollNumber || ''}
+                                                        onChange={(e) => updateStudentRollNumber(studentIndex, e.target.value)}
+                                                        className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-brand-teal"
+                                                        placeholder="e.g. 0001"
                                                     />
                                                 </td>
                                                 {student.grades.map((grade, gradeIndex) => (
