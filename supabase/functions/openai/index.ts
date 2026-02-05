@@ -54,7 +54,7 @@ serve(async (req) => {
                 {
                   type: "text",
                   text: `Extract all data from this gradesheet image. Look carefully for:
-1. Roll numbers, student IDs, or serial numbers (usually in the first column or next to names)
+1. Student IDs (a 4-digit number, usually in the first column or next to names)
 2. Student names
 3. Activity/assessment names (usually column headers)
 4. Grades for each student per activity
@@ -66,14 +66,14 @@ Return ONLY a valid JSON object in this EXACT format:
   "classNumber": "A" or null,
   "activities": ["Activity 1", "Activity 2", ...],
   "students": [
-    {"rollNumber": "1", "name": "Student Name", "grades": ["A", "B", ...]},
-    {"rollNumber": "2", "name": "Another Student", "grades": ["B", "A", ...]}
+    {"rollNumber": "0001", "name": "Student Name", "grades": ["A", "B", ...]},
+    {"rollNumber": "0002", "name": "Another Student", "grades": ["B", "A", ...]}
   ]
 }
 
 IMPORTANT:
-- rollNumber MUST be extracted if visible (as a string like "1", "2", "01", etc.)
-- If roll number is not visible for a student, use null
+- rollNumber should contain the student ID (a 4-digit number like "0001", "0042"). Extract it if visible.
+- If student ID is not visible for a student, use null
 - grades array must match activities array in order
 - Use "A" for Excellent, "B" for Good, "C" for Needs Practice, "X" for Absent
 - If a grade is unclear, use empty string ""`,

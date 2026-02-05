@@ -770,7 +770,7 @@
             const loadClasses = async () => {
                 const { data, error } = await supabase
                     .from('classes')
-                    .select('class_id, class_name')
+                    .select('class_id, class_name, center_id')
                     .eq('teacher_id', user.id)
                     .eq('is_active', true);
 
@@ -806,7 +806,7 @@
                 if (studentIds.length > 0) {
                     const { data: studentsData } = await supabase
                         .from('students')
-                        .select('student_id, student_name, roll_number, parent_id')
+                        .select('student_id, student_name, center_student_id, parent_id')
                         .in('student_id', studentIds);
 
                     if (studentsData) {
@@ -845,7 +845,7 @@
                         reportId: r.report_id,
                         studentId: r.student_id,
                         studentName: student?.student_name || 'Unknown',
-                        rollNumber: student?.roll_number || null,
+                        centerStudentId: student?.center_student_id || null,
                         parentPhone: student?.parent?.phone || null,
                         parentName: student?.parent?.parent_name || null,
                         report: r.report_body,
@@ -1127,83 +1127,121 @@
                         uploadedImage
                     );
 
-                    // Fetch students from database with parent info via join
+                    // Fetch students from database with parent info
+                    // We fetch class-level students for name matching, and
+                    // center-wide students for center_student_id matching
+                    // (supports students temporarily attending a different class)
                     let dbStudents = [];
+                    let centerStudents = [];
                     if (selectedClassId) {
-                        // First fetch students
+                        // Get center_id for the selected class
+                        const selectedClass = classes.find(c => c.class_id === selectedClassId);
+                        const centerId = selectedClass?.center_id;
+
+                        // Fetch students for the selected class (for name matching)
                         const { data: studentData, error: studentError } = await supabase
                             .from('students')
-                            .select('student_id, student_name, roll_number, parent_id')
+                            .select('student_id, student_name, roll_number, center_student_id, parent_id')
                             .eq('class_id', selectedClassId);
 
                         if (studentError) {
                             console.error('Error fetching students:', studentError);
                         }
 
-                        console.log('=== RAW DATABASE RESPONSE ===');
-                        console.log('studentData:', studentData);
+                        // Fetch ALL students in the same center (for center_student_id matching)
+                        let centerStudentData = [];
+                        if (centerId) {
+                            const { data: allClassesInCenter } = await supabase
+                                .from('classes')
+                                .select('class_id')
+                                .eq('center_id', centerId);
 
-                        if (studentData && studentData.length > 0) {
-                            // Now fetch parent info for students that have parent_id
-                            const parentIds = studentData
-                                .filter(s => s.parent_id)
-                                .map(s => s.parent_id);
-
-                            let parentsMap = {};
-                            if (parentIds.length > 0) {
-                                const { data: parentsData } = await supabase
-                                    .from('parents')
-                                    .select('parent_id, parent_name, phone')
-                                    .in('parent_id', parentIds);
-
-                                console.log('Parents data:', parentsData);
-
-                                if (parentsData) {
-                                    parentsData.forEach(p => {
-                                        parentsMap[p.parent_id] = p;
-                                    });
-                                }
+                            if (allClassesInCenter && allClassesInCenter.length > 0) {
+                                const allClassIds = allClassesInCenter.map(c => c.class_id);
+                                const { data: cStudents } = await supabase
+                                    .from('students')
+                                    .select('student_id, student_name, roll_number, center_student_id, parent_id, class_id')
+                                    .in('class_id', allClassIds);
+                                centerStudentData = cStudents || [];
                             }
+                        }
 
-                            // Combine student data with parent info
+                        console.log('=== RAW DATABASE RESPONSE ===');
+                        console.log('studentData (class):', studentData);
+                        console.log('centerStudentData (center-wide):', centerStudentData?.length);
+
+                        // Collect all unique parent IDs from both sets
+                        const allStudents = [...(studentData || []), ...centerStudentData];
+                        const parentIds = [...new Set(
+                            allStudents
+                                .filter(s => s.parent_id)
+                                .map(s => s.parent_id)
+                        )];
+
+                        let parentsMap = {};
+                        if (parentIds.length > 0) {
+                            const { data: parentsData } = await supabase
+                                .from('parents')
+                                .select('parent_id, parent_name, phone')
+                                .in('parent_id', parentIds);
+
+                            console.log('Parents data:', parentsData);
+
+                            if (parentsData) {
+                                parentsData.forEach(p => {
+                                    parentsMap[p.parent_id] = p;
+                                });
+                            }
+                        }
+
+                        // Combine student data with parent info
+                        if (studentData && studentData.length > 0) {
                             dbStudents = studentData.map(s => ({
                                 ...s,
                                 parents: s.parent_id ? parentsMap[s.parent_id] : null
                             }));
                         }
+
+                        centerStudents = centerStudentData.map(s => ({
+                            ...s,
+                            parents: s.parent_id ? parentsMap[s.parent_id] : null
+                        }));
                     } else {
                         console.warn('No class selected! Cannot fetch students from database.');
                     }
 
                     console.log('=== DATABASE STUDENTS ===');
-                    console.log('Found', dbStudents.length, 'students in database for this class');
+                    console.log('Found', dbStudents.length, 'students in selected class');
+                    console.log('Found', centerStudents.length, 'students in center (for ID matching)');
                     console.log('DB Students:', dbStudents.map(s => ({
                         name: s.student_name,
-                        roll: s.roll_number,
+                        centerId: s.center_student_id,
                         parentId: s.parent_id,
                         parentPhone: s.parents?.phone
                     })));
-                    alert("Students printed")
                     // Helper function to match OCR student with database student
-                    // Matches by roll_number first (if available), then by name
+                    // Matches by center_student_id first (center-wide), then by name (class-level)
                     const findDbStudent = (ocrStudent) => {
                         const ocrName = ocrStudent.name?.toLowerCase().trim();
                         const ocrRoll = ocrStudent.rollNumber?.toString().trim();
 
-                        console.log(`Trying to match OCR student: "${ocrName}" (roll: ${ocrRoll || 'none'}).`);
-                        
-                        // First try to match by roll number if available
+                        console.log(`Trying to match OCR student: "${ocrName}" (id: ${ocrRoll || 'none'}).`);
+
+                        // First try to match by center_student_id (searches center-wide)
+                        // This supports students temporarily attending a different class
                         if (ocrRoll) {
-                            const matchByRoll = dbStudents.find(s =>
-                                s.roll_number?.toString().trim() === ocrRoll
+                            const paddedRoll = ocrRoll.padStart(4, '0');
+                            const matchById = centerStudents.find(s =>
+                                s.center_student_id?.toString().trim() === ocrRoll ||
+                                s.center_student_id?.toString().trim() === paddedRoll
                             );
-                            if (matchByRoll) {
-                                console.log(`  -> Matched by roll number to: ${matchByRoll.student_name}`);
-                                return matchByRoll;
+                            if (matchById) {
+                                console.log(`  -> Matched by center_student_id to: ${matchById.student_name}`);
+                                return matchById;
                             }
                         }
 
-                        // Fallback to name matching - try multiple strategies
+                        // Fallback to name matching (class-level only)
                         for (const dbStudent of dbStudents) {
                             const dbName = dbStudent.student_name?.toLowerCase().trim();
 
@@ -1283,7 +1321,7 @@
                         return {
                             studentName: student.name,
                             studentId: dbStudent?.student_id || null,
-                            rollNumber: dbStudent?.roll_number || null,
+                            centerStudentId: dbStudent?.center_student_id || null,
                             parentPhone: dbStudent?.parents?.phone || null,
                             parentName: dbStudent?.parents?.parent_name || null,
                             report: content,
@@ -1305,7 +1343,7 @@
                                 generatedReports.push({
                                     studentId: report.studentId,
                                     studentName: report.studentName,
-                                    rollNumber: report.rollNumber,
+                                    centerStudentId: report.centerStudentId,
                                     parentPhone: report.parentPhone,
                                     parentName: report.parentName,
                                     report: report.report,
