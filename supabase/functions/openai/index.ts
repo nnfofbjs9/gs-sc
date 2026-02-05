@@ -87,7 +87,7 @@ IMPORTANT:
               ],
             },
           ],
-          max_tokens: 10000,
+          max_completion_tokens: 10000,
         }),
       });
 
@@ -123,7 +123,7 @@ IMPORTANT:
               content: `Child: ${studentName}\n\nActivity Ratings:\n${activityGrades}\n\nFor each child, generate:\n1. A 3-4 line summary in friendly tone.\n2. 3-4 fun, 15-minute home activities.\nKeep total reply per child under 200 words.\nVery important: The response must not contain m-dashes ("—"). Replace them with colons where appropriate.`,
             },
           ],
-          max_tokens: 10000,
+          max_completion_tokens: 10000,
         }),
       });
 
