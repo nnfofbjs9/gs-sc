@@ -344,7 +344,7 @@
         // =====================================================
         // NAVIGATION HEADER COMPONENT
         // =====================================================
-        function NavHeader({ user, onSignOut, currentView, onViewChange }) {
+        function NavHeader({ user, onSignOut, currentView, onViewChange, isSiteAdmin }) {
             const [showMenu, setShowMenu] = useState(false);
 
             return (
@@ -375,6 +375,14 @@
                                 >
                                     Classes
                                 </button>
+                                {isSiteAdmin && (
+                                    <a
+                                        href="/admin.html"
+                                        className="px-3 py-1 rounded text-purple-600 hover:bg-purple-50 font-medium"
+                                    >
+                                        Admin
+                                    </a>
+                                )}
                             </nav>
                         </div>
                         
@@ -410,6 +418,14 @@
                                         >
                                             Classes
                                         </button>
+                                        {isSiteAdmin && (
+                                            <a
+                                                href="/admin.html"
+                                                className="block px-4 py-2 text-purple-600 hover:bg-purple-50 font-medium"
+                                            >
+                                                Admin
+                                            </a>
+                                        )}
                                     </div>
                                     <button
                                         onClick={onSignOut}
@@ -2249,6 +2265,7 @@
             const [currentView, setCurrentView] = useState('scanner');
             const [selectedSession, setSelectedSession] = useState(null);
             const [showPasswordReset, setShowPasswordReset] = useState(false);
+            const [isSiteAdmin, setIsSiteAdmin] = useState(false);
             const [, forceUpdate] = useState(0); // For debug panel refresh
 
             // Check for existing session on mount
@@ -2274,6 +2291,7 @@
                         
                         if (teacher?.role === 'site_admin') {
                             DEBUG_MODE = true;
+                            setIsSiteAdmin(true);
                             console.log('[DEBUG MODE ENABLED] You are a site_admin');
                         }
                     }
@@ -2336,14 +2354,15 @@
             // Main authenticated app (no API key needed anymore!)
             return (
                 <div className="min-h-screen bg-gray-50">
-                    <NavHeader 
-                        user={user} 
+                    <NavHeader
+                        user={user}
                         onSignOut={handleSignOut}
                         currentView={currentView}
                         onViewChange={(view) => {
                             setCurrentView(view);
                             setSelectedSession(null);
                         }}
+                        isSiteAdmin={isSiteAdmin}
                     />
 
                     {currentView === 'scanner' && (
