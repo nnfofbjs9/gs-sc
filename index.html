@@ -1089,12 +1089,20 @@
             };
 
             // Save session to database
-            const saveSession = async (ocrData, imageBase64) => {
+            const saveSession = async (ocrData, imageBase64, classIdOverride) => {
                 try {
                     setSaveStatus('Saving...');
-                    
+
+                    const effectiveClassId = classIdOverride || selectedClassId;
+                    if (!effectiveClassId) {
+                        console.warn('Cannot save session without class_id');
+                        setSaveStatus('');
+                        setError('Please select a class before saving.');
+                        return null;
+                    }
+
                     const sessionData = {
-                        class_id: selectedClassId,
+                        class_id: effectiveClassId,
                         teacher_id: user.id,
                         session_date: new Date().toISOString().split('T')[0],
                         ocr_raw: ocrData,
@@ -1218,8 +1226,8 @@
 
                     setCurrentScreen('edit');
 
-                    // Auto-save to database
-                    await saveSession(extractedData, compressedImage);
+                    // Auto-save to database (pass autoClassId directly to avoid React state race condition)
+                    await saveSession(extractedData, compressedImage, autoClassId);
 
                     // Immediately match students to DB
                     if (autoClassId) {
@@ -1356,6 +1364,12 @@
             // Generate reports
             const generateReports = async () => {
                 setError('');
+
+                if (!selectedClassId) {
+                    setError('Please select a class before generating reports.');
+                    return;
+                }
+
                 setIsProcessing(true);
 
                 debugLog('STARTING REPORT GENERATION', {
@@ -1909,6 +1923,10 @@
                                 </button>
                                 <button
                                     onClick={async () => {
+                                        if (!selectedClassId) {
+                                            setError('Please select a class before saving.');
+                                            return;
+                                        }
                                         await saveSession({ activities, students }, uploadedImage);
                                     }}
                                     className="px-6 py-3 bg-gray-600 text-white rounded-lg font-medium hover:bg-gray-700 transition"
