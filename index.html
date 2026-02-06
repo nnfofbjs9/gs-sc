@@ -1275,6 +1275,11 @@
                     updated[index].name = matchedCenterStudent.student_name;
                 }
                 setStudents(updated);
+                setMatchedStudentMap(prev => {
+                    const newMap = [...prev];
+                    newMap[index] = matchedCenterStudent || null;
+                    return newMap;
+                });
             };
 
             const updateActivityName = (index, value) => {
