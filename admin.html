@@ -25,6 +25,60 @@
         const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
         // =====================================================
+        // INPUT SANITIZATION UTILITIES
+        // =====================================================
+        // Reject strings containing characters commonly used in SQL injection or XSS
+        const DANGEROUS_PATTERN = /[<>{}();'"\\\/\-\-]|(\b(SELECT|INSERT|UPDATE|DELETE|DROP|UNION|ALTER|EXEC|SCRIPT)\b)/i;
+
+        function sanitizeText(value) {
+            if (typeof value !== 'string') return '';
+            return value.trim().replace(/\s+/g, ' ');
+        }
+
+        function validateSafeInput(value, fieldName) {
+            const trimmed = sanitizeText(value);
+            if (DANGEROUS_PATTERN.test(trimmed)) {
+                throw new Error(`${fieldName} contains disallowed characters. Please remove any special characters like < > { } ( ) ; ' " \\ / --`);
+            }
+            return trimmed;
+        }
+
+        function validateEmail(value) {
+            const trimmed = sanitizeText(value);
+            if (!trimmed) return '';
+            const emailRegex = /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/;
+            if (!emailRegex.test(trimmed)) {
+                throw new Error('Please enter a valid email address.');
+            }
+            if (DANGEROUS_PATTERN.test(trimmed.replace(/@/g, '').replace(/\./g, ''))) {
+                throw new Error('Email contains disallowed characters.');
+            }
+            return trimmed;
+        }
+
+        function validatePhone(value) {
+            const trimmed = sanitizeText(value);
+            if (!trimmed) return '';
+            const phoneRegex = /^[+]?[\d\s\-().]{7,20}$/;
+            if (!phoneRegex.test(trimmed)) {
+                throw new Error('Please enter a valid phone number.');
+            }
+            return trimmed;
+        }
+
+        function validateName(value, fieldName) {
+            const trimmed = sanitizeText(value);
+            if (!trimmed) throw new Error(`${fieldName} is required.`);
+            if (trimmed.length < 2) throw new Error(`${fieldName} must be at least 2 characters.`);
+            if (trimmed.length > 100) throw new Error(`${fieldName} must be less than 100 characters.`);
+            const nameRegex = /^[a-zA-Z\s.]+$/;
+            if (!nameRegex.test(trimmed)) {
+                throw new Error(`${fieldName} can only contain letters, spaces, and periods.`);
+            }
+            return trimmed;
+        }
+
+        // =====================================================
         // ADMIN HEADER COMPONENT
         // =====================================================
         function AdminHeader({ user, onSignOut }) {
@@ -161,13 +215,16 @@
                 setSaving(true);
 
                 try {
+                    const cleanName = validateSafeInput(formData.activity_name, 'Activity name');
+                    const cleanDesc = formData.description ? validateSafeInput(formData.description, 'Description') : '';
+
                     const { data, error } = await supabase
                         .from('activities')
                         .insert({
-                            activity_name: formData.activity_name.trim(),
+                            activity_name: cleanName,
                             skill_id: formData.skill_id,
                             level: parseInt(formData.level),
-                            description: formData.description.trim()
+                            description: cleanDesc
                         })
                         .select('*, skills(skill_name)')
                         .single();
@@ -265,6 +322,7 @@
                                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                                             placeholder="e.g., Counting Beads"
                                             required
+                                            maxLength={100}
                                         />
                                     </div>
 
@@ -314,6 +372,7 @@
                                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                                             placeholder="Brief description of the activity..."
                                             rows={2}
+                                            maxLength={500}
                                         />
                                     </div>
                                 </div>
@@ -435,13 +494,18 @@
                 setSaving(true);
 
                 try {
+                    const cleanCenterName = validateSafeInput(formData.center_name, 'Center name');
+                    const cleanLocation = validateSafeInput(formData.location, 'Location');
+                    const cleanEmail = formData.contact_email ? validateEmail(formData.contact_email) : null;
+                    const cleanPhone = formData.contact_phone ? validatePhone(formData.contact_phone) : null;
+
                     const { data, error } = await supabase
                         .from('centers')
                         .insert({
-                            center_name: formData.center_name.trim(),
-                            location: formData.location.trim(),
-                            contact_email: formData.contact_email.trim() || null,
-                            contact_phone: formData.contact_phone.trim() || null
+                            center_name: cleanCenterName,
+                            location: cleanLocation,
+                            contact_email: cleanEmail,
+                            contact_phone: cleanPhone
                         })
                         .select()
                         .single();
@@ -513,6 +577,7 @@
                                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                                             placeholder="e.g., Downtown Center"
                                             required
+                                            maxLength={100}
                                         />
                                     </div>
 
@@ -527,6 +592,7 @@
                                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                                             placeholder="e.g., Mumbai"
                                             required
+                                            maxLength={100}
                                         />
                                     </div>
 
@@ -540,6 +606,7 @@
                                             onChange={(e) => setFormData({ ...formData, contact_email: e.target.value })}
                                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                                             placeholder="center@example.com"
+                                            maxLength={100}
                                         />
                                     </div>
 
@@ -553,6 +620,7 @@
                                             onChange={(e) => setFormData({ ...formData, contact_phone: e.target.value })}
                                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                                             placeholder="+91 99999 99999"
+                                            maxLength={20}
                                         />
                                     </div>
                                 </div>
@@ -776,23 +844,501 @@
         }
 
         // =====================================================
+        // STUDENT & PARENT MANAGEMENT COMPONENT
+        // =====================================================
+        function StudentManagement() {
+            const [students, setStudents] = useState([]);
+            const [parents, setParents] = useState([]);
+            const [classes, setClasses] = useState([]);
+            const [loading, setLoading] = useState(true);
+            const [error, setError] = useState('');
+            const [success, setSuccess] = useState('');
+
+            // Enrollment form state
+            const [showEnrollForm, setShowEnrollForm] = useState(false);
+            const [saving, setSaving] = useState(false);
+            const [parentMode, setParentMode] = useState('new'); // 'new' or 'existing'
+            const [selectedParentId, setSelectedParentId] = useState('');
+            const [parentForm, setParentForm] = useState({
+                parent_name: '',
+                email: '',
+                phone: '',
+                relationship_type: 'parent',
+                preferred_contact: 'email'
+            });
+            const [studentForm, setStudentForm] = useState({
+                student_name: '',
+                date_of_birth: '',
+                class_id: '',
+                center_student_id: '',
+                notes: ''
+            });
+
+            // Edit state
+            const [editingStudent, setEditingStudent] = useState(null);
+            const [editForm, setEditForm] = useState({});
+
+            useEffect(() => {
+                loadData();
+            }, []);
+
+            const loadData = async () => {
+                try {
+                    const [studentsRes, parentsRes, classesRes] = await Promise.all([
+                        supabase.from('students').select('*, parents(parent_name, email, phone), classes(class_name, class_code)').order('student_name'),
+                        supabase.from('parents').select('*').order('parent_name'),
+                        supabase.from('classes').select('*, centers(center_name)').eq('is_active', true).order('class_name')
+                    ]);
+
+                    if (studentsRes.error) throw studentsRes.error;
+                    if (parentsRes.error) throw parentsRes.error;
+                    if (classesRes.error) throw classesRes.error;
+
+                    setStudents(studentsRes.data || []);
+                    setParents(parentsRes.data || []);
+                    setClasses(classesRes.data || []);
+                    if (classesRes.data?.length > 0) {
+                        setStudentForm(prev => ({ ...prev, class_id: classesRes.data[0].class_id }));
+                    }
+                } catch (err) {
+                    setError('Failed to load data: ' + err.message);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const handleEnroll = async (e) => {
+                e.preventDefault();
+                setError('');
+                setSuccess('');
+                setSaving(true);
+
+                try {
+                    // Validate student fields
+                    const cleanStudentName = validateName(studentForm.student_name, 'Student name');
+                    const cleanNotes = studentForm.notes ? validateSafeInput(studentForm.notes, 'Notes') : '';
+                    const cleanCenterStudentId = studentForm.center_student_id ? validateSafeInput(studentForm.center_student_id, 'Center Student ID') : '';
+
+                    let parentId = null;
+
+                    if (parentMode === 'existing') {
+                        if (!selectedParentId) throw new Error('Please select an existing parent.');
+                        parentId = selectedParentId;
+                    } else {
+                        // Validate parent fields
+                        const cleanParentName = validateName(parentForm.parent_name, 'Parent name');
+                        const cleanEmail = validateEmail(parentForm.email);
+                        const cleanPhone = validatePhone(parentForm.phone);
+
+                        // Insert new parent
+                        const { data: newParent, error: parentError } = await supabase
+                            .from('parents')
+                            .insert({
+                                parent_name: cleanParentName,
+                                email: cleanEmail || null,
+                                phone: cleanPhone || null,
+                                relationship_type: parentForm.relationship_type,
+                                preferred_contact: parentForm.preferred_contact
+                            })
+                            .select()
+                            .single();
+
+                        if (parentError) throw parentError;
+                        parentId = newParent.parent_id;
+                    }
+
+                    // Insert student
+                    const { data: newStudent, error: studentError } = await supabase
+                        .from('students')
+                        .insert({
+                            student_name: cleanStudentName,
+                            date_of_birth: studentForm.date_of_birth || null,
+                            parent_id: parentId,
+                            class_id: studentForm.class_id,
+                            center_student_id: cleanCenterStudentId || null,
+                            notes: cleanNotes || null
+                        })
+                        .select('*, parents(parent_name, email, phone), classes(class_name, class_code)')
+                        .single();
+
+                    if (studentError) throw studentError;
+
+                    setStudents([...students, newStudent]);
+                    setSuccess('Student enrolled successfully!');
+                    resetForm();
+                    setShowEnrollForm(false);
+                    // Reload parents list in case a new one was added
+                    const { data: freshParents } = await supabase.from('parents').select('*').order('parent_name');
+                    setParents(freshParents || []);
+                } catch (err) {
+                    setError(err.message);
+                } finally {
+                    setSaving(false);
+                }
+            };
+
+            const resetForm = () => {
+                setParentForm({ parent_name: '', email: '', phone: '', relationship_type: 'parent', preferred_contact: 'email' });
+                setStudentForm({ student_name: '', date_of_birth: '', class_id: classes[0]?.class_id || '', center_student_id: '', notes: '' });
+                setParentMode('new');
+                setSelectedParentId('');
+            };
+
+            const startEdit = (student) => {
+                setEditingStudent(student.student_id);
+                setEditForm({
+                    student_name: student.student_name,
+                    date_of_birth: student.date_of_birth || '',
+                    class_id: student.class_id,
+                    center_student_id: student.center_student_id || '',
+                    notes: student.notes || '',
+                    is_active: student.is_active
+                });
+            };
+
+            const handleUpdate = async (studentId) => {
+                setError('');
+                setSuccess('');
+                try {
+                    const cleanName = validateName(editForm.student_name, 'Student name');
+                    const cleanNotes = editForm.notes ? validateSafeInput(editForm.notes, 'Notes') : '';
+                    const cleanCenterStudentId = editForm.center_student_id ? validateSafeInput(editForm.center_student_id, 'Center Student ID') : '';
+
+                    const { error } = await supabase
+                        .from('students')
+                        .update({
+                            student_name: cleanName,
+                            date_of_birth: editForm.date_of_birth || null,
+                            class_id: editForm.class_id,
+                            center_student_id: cleanCenterStudentId || null,
+                            notes: cleanNotes || null,
+                            is_active: editForm.is_active
+                        })
+                        .eq('student_id', studentId);
+
+                    if (error) throw error;
+
+                    setEditingStudent(null);
+                    setSuccess('Student updated successfully!');
+                    loadData();
+                } catch (err) {
+                    setError(err.message);
+                }
+            };
+
+            const deleteStudent = async (studentId, studentName) => {
+                if (!confirm(`Are you sure you want to delete "${studentName}"? This cannot be undone.`)) return;
+                try {
+                    const { error } = await supabase
+                        .from('students')
+                        .delete()
+                        .eq('student_id', studentId);
+
+                    if (error) throw error;
+                    setStudents(students.filter(s => s.student_id !== studentId));
+                    setSuccess('Student deleted successfully!');
+                } catch (err) {
+                    setError('Failed to delete: ' + err.message);
+                }
+            };
+
+            if (loading) {
+                return (
+                    <div className="text-center py-12">
+                        <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-blue-600 border-t-transparent"></div>
+                        <p className="mt-2 text-gray-600">Loading students...</p>
+                    </div>
+                );
+            }
+
+            return (
+                <div>
+                    <div className="flex justify-between items-center mb-6">
+                        <div>
+                            <h2 className="text-2xl font-bold text-gray-800">Students & Parents</h2>
+                            <p className="text-gray-600">{students.length} students, {parents.length} parents</p>
+                        </div>
+                        <button
+                            onClick={() => { resetForm(); setShowEnrollForm(true); }}
+                            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+                        >
+                            + Enroll Student
+                        </button>
+                    </div>
+
+                    {error && (
+                        <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg mb-4">
+                            {error}
+                            <button onClick={() => setError('')} className="float-right font-bold">x</button>
+                        </div>
+                    )}
+                    {success && (
+                        <div className="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-lg mb-4">
+                            {success}
+                            <button onClick={() => setSuccess('')} className="float-right font-bold">x</button>
+                        </div>
+                    )}
+
+                    {/* Enrollment Form */}
+                    {showEnrollForm && (
+                        <div className="bg-white rounded-lg shadow p-6 mb-6">
+                            <h3 className="text-lg font-semibold text-gray-800 mb-4">Enroll New Student</h3>
+                            <form onSubmit={handleEnroll}>
+                                {/* Parent Section */}
+                                <div className="mb-6">
+                                    <div className="flex items-center gap-4 mb-3">
+                                        <h4 className="font-medium text-gray-700">Parent / Guardian</h4>
+                                        <div className="flex gap-2">
+                                            <button type="button" onClick={() => setParentMode('new')}
+                                                className={`px-3 py-1 text-sm rounded ${parentMode === 'new' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}`}>
+                                                New Parent
+                                            </button>
+                                            <button type="button" onClick={() => setParentMode('existing')}
+                                                className={`px-3 py-1 text-sm rounded ${parentMode === 'existing' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}`}>
+                                                Existing Parent
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {parentMode === 'existing' ? (
+                                        <select value={selectedParentId}
+                                            onChange={(e) => setSelectedParentId(e.target.value)}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" required>
+                                            <option value="">-- Select Parent --</option>
+                                            {parents.map(p => (
+                                                <option key={p.parent_id} value={p.parent_id}>
+                                                    {p.parent_name} {p.email ? `(${p.email})` : ''} {p.phone ? `[${p.phone}]` : ''}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    ) : (
+                                        <div className="grid gap-4 md:grid-cols-2">
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">Parent Name *</label>
+                                                <input type="text" value={parentForm.parent_name}
+                                                    onChange={(e) => setParentForm({ ...parentForm, parent_name: e.target.value })}
+                                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                                    placeholder="e.g., Priya Sharma" required maxLength={100} />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                                                <input type="email" value={parentForm.email}
+                                                    onChange={(e) => setParentForm({ ...parentForm, email: e.target.value })}
+                                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                                    placeholder="parent@example.com" maxLength={100} />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                                                <input type="tel" value={parentForm.phone}
+                                                    onChange={(e) => setParentForm({ ...parentForm, phone: e.target.value })}
+                                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                                    placeholder="+91 99999 99999" maxLength={20} />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">Relationship</label>
+                                                <select value={parentForm.relationship_type}
+                                                    onChange={(e) => setParentForm({ ...parentForm, relationship_type: e.target.value })}
+                                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                                                    <option value="parent">Parent</option>
+                                                    <option value="guardian">Guardian</option>
+                                                    <option value="grandparent">Grandparent</option>
+                                                    <option value="other">Other</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">Preferred Contact</label>
+                                                <select value={parentForm.preferred_contact}
+                                                    onChange={(e) => setParentForm({ ...parentForm, preferred_contact: e.target.value })}
+                                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                                                    <option value="email">Email</option>
+                                                    <option value="phone">Phone</option>
+                                                    <option value="whatsapp">WhatsApp</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Student Section */}
+                                <div className="border-t pt-4">
+                                    <h4 className="font-medium text-gray-700 mb-3">Student Details</h4>
+                                    <div className="grid gap-4 md:grid-cols-2">
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">Student Name *</label>
+                                            <input type="text" value={studentForm.student_name}
+                                                onChange={(e) => setStudentForm({ ...studentForm, student_name: e.target.value })}
+                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                                placeholder="e.g., Aarav Sharma" required maxLength={100} />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">Date of Birth</label>
+                                            <input type="date" value={studentForm.date_of_birth}
+                                                onChange={(e) => setStudentForm({ ...studentForm, date_of_birth: e.target.value })}
+                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">Class *</label>
+                                            <select value={studentForm.class_id}
+                                                onChange={(e) => setStudentForm({ ...studentForm, class_id: e.target.value })}
+                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" required>
+                                                {classes.map(c => (
+                                                    <option key={c.class_id} value={c.class_id}>
+                                                        {c.class_name} ({c.centers?.center_name}) {c.class_code ? `[${c.class_code}]` : ''}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">Center Student ID</label>
+                                            <input type="text" value={studentForm.center_student_id}
+                                                onChange={(e) => setStudentForm({ ...studentForm, center_student_id: e.target.value })}
+                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                                placeholder="Optional ID" maxLength={50} />
+                                        </div>
+                                        <div className="md:col-span-2">
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                                            <textarea value={studentForm.notes}
+                                                onChange={(e) => setStudentForm({ ...studentForm, notes: e.target.value })}
+                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                                placeholder="Any special notes..." rows={2} maxLength={500} />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="mt-4 flex gap-3">
+                                    <button type="submit" disabled={saving}
+                                        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 transition">
+                                        {saving ? 'Enrolling...' : 'Enroll Student'}
+                                    </button>
+                                    <button type="button" onClick={() => setShowEnrollForm(false)}
+                                        className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-100 transition">
+                                        Cancel
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    )}
+
+                    {/* Students Table */}
+                    <div className="bg-white rounded-lg shadow overflow-hidden">
+                        <table className="w-full">
+                            <thead className="bg-gray-100">
+                                <tr>
+                                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Student</th>
+                                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Parent</th>
+                                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Class</th>
+                                    <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700">Status</th>
+                                    <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-200">
+                                {students.map(student => (
+                                    <tr key={student.student_id} className="hover:bg-gray-50">
+                                        {editingStudent === student.student_id ? (
+                                            <>
+                                                <td className="px-4 py-3">
+                                                    <input type="text" value={editForm.student_name}
+                                                        onChange={(e) => setEditForm({ ...editForm, student_name: e.target.value })}
+                                                        className="w-full px-2 py-1 border border-gray-300 rounded text-sm" maxLength={100} />
+                                                </td>
+                                                <td className="px-4 py-3 text-gray-600 text-sm">
+                                                    {student.parents?.parent_name || '-'}
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    <select value={editForm.class_id}
+                                                        onChange={(e) => setEditForm({ ...editForm, class_id: e.target.value })}
+                                                        className="w-full px-2 py-1 border border-gray-300 rounded text-sm">
+                                                        {classes.map(c => (
+                                                            <option key={c.class_id} value={c.class_id}>{c.class_name}</option>
+                                                        ))}
+                                                    </select>
+                                                </td>
+                                                <td className="px-4 py-3 text-center">
+                                                    <select value={editForm.is_active ? 'active' : 'inactive'}
+                                                        onChange={(e) => setEditForm({ ...editForm, is_active: e.target.value === 'active' })}
+                                                        className="px-2 py-1 text-sm border rounded">
+                                                        <option value="active">Active</option>
+                                                        <option value="inactive">Inactive</option>
+                                                    </select>
+                                                </td>
+                                                <td className="px-4 py-3 text-center">
+                                                    <button onClick={() => handleUpdate(student.student_id)}
+                                                        className="text-green-600 hover:text-green-800 text-sm mr-2">Save</button>
+                                                    <button onClick={() => setEditingStudent(null)}
+                                                        className="text-gray-600 hover:text-gray-800 text-sm">Cancel</button>
+                                                </td>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <td className="px-4 py-3">
+                                                    <div className="font-medium text-gray-800">{student.student_name}</div>
+                                                    {student.date_of_birth && <div className="text-xs text-gray-500">DOB: {student.date_of_birth}</div>}
+                                                    {student.center_student_id && <div className="text-xs text-gray-500">ID: {student.center_student_id}</div>}
+                                                </td>
+                                                <td className="px-4 py-3 text-sm text-gray-600">
+                                                    <div>{student.parents?.parent_name || '-'}</div>
+                                                    {student.parents?.email && <div className="text-xs text-gray-500">{student.parents.email}</div>}
+                                                    {student.parents?.phone && <div className="text-xs text-gray-500">{student.parents.phone}</div>}
+                                                </td>
+                                                <td className="px-4 py-3 text-sm text-gray-600">
+                                                    {student.classes?.class_name || '-'}
+                                                    {student.classes?.class_code && <span className="text-xs text-gray-400 ml-1">[{student.classes.class_code}]</span>}
+                                                </td>
+                                                <td className="px-4 py-3 text-center">
+                                                    <span className={`px-2 py-1 text-xs rounded ${student.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}`}>
+                                                        {student.is_active ? 'Active' : 'Inactive'}
+                                                    </span>
+                                                </td>
+                                                <td className="px-4 py-3 text-center">
+                                                    <button onClick={() => startEdit(student)}
+                                                        className="text-blue-600 hover:text-blue-800 text-sm mr-2">Edit</button>
+                                                    <button onClick={() => deleteStudent(student.student_id, student.student_name)}
+                                                        className="text-red-600 hover:text-red-800 text-sm">Delete</button>
+                                                </td>
+                                            </>
+                                        )}
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                        {students.length === 0 && (
+                            <div className="text-center py-8 text-gray-500">
+                                No students yet. Enroll your first student above.
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        }
+
+        // =====================================================
         // ADMIN DASHBOARD COMPONENT
         // =====================================================
         function AdminDashboard({ user, teacher, onSignOut }) {
-            const [activeTab, setActiveTab] = useState('activities');
+            const [activeTab, setActiveTab] = useState('students');
 
             return (
                 <div className="min-h-screen bg-gray-100">
                     <AdminHeader user={user} onSignOut={onSignOut} />
-                    
+
                     <div className="max-w-7xl mx-auto px-4 py-6">
                         {/* Tab Navigation */}
                         <div className="flex gap-2 mb-6 border-b border-gray-300">
                             <button
+                                onClick={() => setActiveTab('students')}
+                                className={`px-4 py-2 font-medium transition ${
+                                    activeTab === 'students'
+                                        ? 'text-blue-600 border-b-2 border-blue-600'
+                                        : 'text-gray-600 hover:text-gray-800'
+                                }`}
+                            >
+                                Students
+                            </button>
+                            <button
                                 onClick={() => setActiveTab('activities')}
                                 className={`px-4 py-2 font-medium transition ${
-                                    activeTab === 'activities' 
-                                        ? 'text-blue-600 border-b-2 border-blue-600' 
+                                    activeTab === 'activities'
+                                        ? 'text-blue-600 border-b-2 border-blue-600'
                                         : 'text-gray-600 hover:text-gray-800'
                                 }`}
                             >
@@ -801,8 +1347,8 @@
                             <button
                                 onClick={() => setActiveTab('centers')}
                                 className={`px-4 py-2 font-medium transition ${
-                                    activeTab === 'centers' 
-                                        ? 'text-blue-600 border-b-2 border-blue-600' 
+                                    activeTab === 'centers'
+                                        ? 'text-blue-600 border-b-2 border-blue-600'
                                         : 'text-gray-600 hover:text-gray-800'
                                 }`}
                             >
@@ -811,8 +1357,8 @@
                             <button
                                 onClick={() => setActiveTab('teachers')}
                                 className={`px-4 py-2 font-medium transition ${
-                                    activeTab === 'teachers' 
-                                        ? 'text-blue-600 border-b-2 border-blue-600' 
+                                    activeTab === 'teachers'
+                                        ? 'text-blue-600 border-b-2 border-blue-600'
                                         : 'text-gray-600 hover:text-gray-800'
                                 }`}
                             >
@@ -821,6 +1367,7 @@
                         </div>
 
                         {/* Tab Content */}
+                        {activeTab === 'students' && <StudentManagement />}
                         {activeTab === 'activities' && <ActivityManagement />}
                         {activeTab === 'centers' && <CenterManagement />}
                         {activeTab === 'teachers' && <TeacherManagement />}
@@ -889,7 +1436,7 @@
             }
 
             // Not admin
-            if (!teacher || teacher.role !== 'admin') {
+            if (!teacher || (teacher.role !== 'admin' && teacher.role !== 'site_admin')) {
                 return <AccessDenied />;
             }
 
