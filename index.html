@@ -1934,7 +1934,25 @@
                                     Save Draft
                                 </button>
                                 <button
-                                    onClick={() => {
+                                    onClick={async () => {
+                                        // Delete draft session from DB if it exists and has no reports
+                                        if (currentSessionId) {
+                                            try {
+                                                const { count } = await supabase
+                                                    .from('reports')
+                                                    .select('*', { count: 'exact', head: true })
+                                                    .eq('session_id', currentSessionId);
+                                                if (count === 0) {
+                                                    await supabase
+                                                        .from('sessions')
+                                                        .delete()
+                                                        .eq('session_id', currentSessionId)
+                                                        .eq('status', 'draft');
+                                                }
+                                            } catch (err) {
+                                                console.warn('Failed to clean up draft session:', err);
+                                            }
+                                        }
                                         setCurrentScreen('upload');
                                         setStudents([]);
                                         setActivities([]);
