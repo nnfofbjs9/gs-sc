@@ -1354,9 +1354,9 @@
                         uploadedImage
                     );
 
-                    // Re-match if needed (e.g. user edited students after initial match)
+                    // Always re-match before generating reports (user may have changed selections)
                     let currentMatches = matchedStudentMap;
-                    if (currentMatches.length !== students.length && selectedClassId) {
+                    if (selectedClassId) {
                         currentMatches = await matchStudentsToDb(selectedClassId, students);
                     }
 
