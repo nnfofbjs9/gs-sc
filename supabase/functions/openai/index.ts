@@ -58,13 +58,13 @@ serve(async (req) => {
 2. Student names
 3. Activity/assessment names (usually column headers)
 4. Grades for each student per activity
-5. Class name written on the topsheet (e.g. "Cuddly Koala A", "Funny Bunny B", or anything in front of the "class name" section on the top left)
+5. Class code: a short numeric code (e.g. "001", "002") printed on the topsheet, usually near the top
 6. Session number visible on the top left of the sheet
 
 Return ONLY a valid JSON object in this EXACT format:
 {
   "sessionNumber": "1" or null,
-  "className": "Class name" or null,
+  "classCode": "001" or null,
   "activities": ["Activity 1", "Activity 2", ...],
   "students": [
     {"center_student_id": "0001", "name": "Student Name", "grades": ["A", "B", ...]},

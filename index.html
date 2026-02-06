@@ -723,7 +723,10 @@
                             <div className="grid gap-4 md:grid-cols-2">
                                 {classes.map((cls) => (
                                     <div key={cls.class_id} className="bg-white rounded-lg shadow p-4">
-                                        <h3 className="font-semibold text-gray-800">{cls.class_name}</h3>
+                                        <h3 className="font-semibold text-gray-800">
+                                            {cls.class_code && <span className="text-brand-teal mr-2">{cls.class_code}</span>}
+                                            {cls.class_name}
+                                        </h3>
                                         <p className="text-sm text-gray-600">{cls.centers?.center_name}</p>
                                         <div className="mt-2">
                                             <span className="px-2 py-1 text-xs bg-teal-100 text-brand-teal rounded">
@@ -796,7 +799,7 @@
             const loadClasses = async () => {
                 let query = supabase
                     .from('classes')
-                    .select('class_id, class_name, center_id')
+                    .select('class_id, class_name, class_code, center_id')
                     .eq('is_active', true);
                 if (!DEBUG_MODE) {
                     query = query.eq('teacher_id', user.id);
@@ -1163,21 +1166,17 @@
                     setActivities(extractedData.activities);
                     setStudents(extractedData.students);
 
-                    // Auto-match class from OCR-extracted className
+                    // Auto-match class from OCR-extracted classCode
                     let autoClassId = selectedClassId;
-                    if (extractedData.className && classes.length > 0) {
-                        const ocrClassName = extractedData.className.toLowerCase().trim();
-                        const matchedClass = classes.find(c =>
-                            c.class_name.toLowerCase().trim() === ocrClassName ||
-                            c.class_name.toLowerCase().trim().includes(ocrClassName) ||
-                            ocrClassName.includes(c.class_name.toLowerCase().trim())
-                        );
+                    if (extractedData.classCode && classes.length > 0) {
+                        const ocrCode = extractedData.classCode.trim();
+                        const matchedClass = classes.find(c => c.class_code === ocrCode);
                         if (matchedClass) {
                             autoClassId = matchedClass.class_id;
                             setSelectedClassId(autoClassId);
-                            debugLog('Auto-matched class', { ocrClassName, matchedName: matchedClass.class_name, classId: autoClassId });
+                            debugLog('Auto-matched class', { ocrCode, matchedName: matchedClass.class_name, classId: autoClassId });
                         } else {
-                            console.warn('No class match found for OCR className:', extractedData.className);
+                            console.warn('No class match found for OCR classCode:', ocrCode);
                         }
                     }
 
@@ -1735,7 +1734,7 @@
                                     <option value="">-- Select a class --</option>
                                     {classes.map(c => (
                                         <option key={c.class_id} value={c.class_id}>
-                                            {c.class_name}
+                                            {c.class_code ? `${c.class_code} — ${c.class_name}` : c.class_name}
                                         </option>
                                     ))}
                                 </select>
