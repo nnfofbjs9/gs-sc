@@ -755,6 +755,9 @@
             const [saveStatus, setSaveStatus] = useState('');
             const [isSavingReports, setIsSavingReports] = useState(false);
             const [colWidths, setColWidths] = useState({ name: 180, centerId: 120 });
+            const [matchedStudentMap, setMatchedStudentMap] = useState([]);
+            const [isMatching, setIsMatching] = useState(false);
+            const [studentHistory, setStudentHistory] = useState({});
 
             const startResize = (colKey, e) => {
                 e.preventDefault();
@@ -796,6 +799,140 @@
                     if (data.length > 0 && !selectedClassId) {
                         setSelectedClassId(data[0].class_id);
                     }
+                }
+            };
+
+            // =====================================================
+            // MATCH STUDENTS TO DATABASE
+            // Fetches DB students for the selected class, matches
+            // OCR students by center_student_id or name, and stores
+            // the result in matchedStudentMap for the session.
+            // =====================================================
+            const matchStudentsToDb = async (classId, ocrStudents) => {
+                if (!classId || !ocrStudents || ocrStudents.length === 0) {
+                    setMatchedStudentMap([]);
+                    return [];
+                }
+
+                setIsMatching(true);
+                debugLog('matchStudentsToDb', { classId, studentCount: ocrStudents.length });
+
+                try {
+                    // Get center_id for the selected class
+                    const selectedClass = classes.find(c => c.class_id === classId);
+                    const centerId = selectedClass?.center_id;
+
+                    // Fetch students for the selected class (for name matching)
+                    const { data: classStudents, error: studentError } = await supabase
+                        .from('students')
+                        .select('student_id, student_name, center_student_id, parent_id')
+                        .eq('class_id', classId);
+
+                    if (studentError) {
+                        console.error('Error fetching students:', studentError);
+                    }
+
+                    // Fetch ALL students in the same center (for center_student_id matching)
+                    let centerStudentData = [];
+                    if (centerId) {
+                        const { data: allClassesInCenter } = await supabase
+                            .from('classes')
+                            .select('class_id')
+                            .eq('center_id', centerId);
+
+                        if (allClassesInCenter && allClassesInCenter.length > 0) {
+                            const allClassIds = allClassesInCenter.map(c => c.class_id);
+                            const { data: cStudents } = await supabase
+                                .from('students')
+                                .select('student_id, student_name, center_student_id, parent_id, class_id')
+                                .in('class_id', allClassIds);
+                            centerStudentData = cStudents || [];
+                        }
+                    }
+
+                    // Collect all unique parent IDs from both sets
+                    const allStudents = [...(classStudents || []), ...centerStudentData];
+                    const parentIds = [...new Set(
+                        allStudents
+                            .filter(s => s.parent_id)
+                            .map(s => s.parent_id)
+                    )];
+
+                    let parentsMap = {};
+                    if (parentIds.length > 0) {
+                        const { data: parentsData } = await supabase
+                            .from('parents')
+                            .select('parent_id, parent_name, phone')
+                            .in('parent_id', parentIds);
+
+                        if (parentsData) {
+                            parentsData.forEach(p => {
+                                parentsMap[p.parent_id] = p;
+                            });
+                        }
+                    }
+
+                    // Combine student data with parent info
+                    const dbStudents = (classStudents || []).map(s => ({
+                        ...s,
+                        parents: s.parent_id ? parentsMap[s.parent_id] : null
+                    }));
+
+                    const centerStudents = centerStudentData.map(s => ({
+                        ...s,
+                        parents: s.parent_id ? parentsMap[s.parent_id] : null
+                    }));
+
+                    // Helper function to match OCR student with database student
+                    const findDbStudent = (ocrStudent) => {
+                        const ocrName = ocrStudent.name?.toLowerCase().trim();
+                        const ocrRoll = ocrStudent.center_student_id?.toString().trim();
+
+                        // First try center_student_id (center-wide)
+                        if (ocrRoll) {
+                            const paddedRoll = ocrRoll.padStart(4, '0');
+                            const matchById = centerStudents.find(s =>
+                                s.center_student_id?.toString().trim() === ocrRoll ||
+                                s.center_student_id?.toString().trim() === paddedRoll
+                            );
+                            if (matchById) return matchById;
+                        }
+
+                        // Fallback to name matching (class-level only)
+                        for (const dbStudent of dbStudents) {
+                            const dbName = dbStudent.student_name?.toLowerCase().trim();
+                            if (dbName === ocrName) return dbStudent;
+                            if (ocrName && dbName && ocrName.includes(dbName)) return dbStudent;
+                            if (ocrName && dbName && dbName.includes(ocrName)) return dbStudent;
+                            const ocrFirstName = ocrName?.split(/\s+/)[0];
+                            const dbFirstName = dbName?.split(/\s+/)[0];
+                            if (ocrFirstName && dbFirstName && ocrFirstName === dbFirstName && ocrFirstName.length > 2) return dbStudent;
+                        }
+
+                        return null;
+                    };
+
+                    // Match each OCR student
+                    const matchMap = ocrStudents.map(ocrStudent => {
+                        const dbStudent = findDbStudent(ocrStudent);
+                        return dbStudent || null;
+                    });
+
+                    const matchedCount = matchMap.filter(m => m !== null).length;
+                    debugLog('matchStudentsToDb result', {
+                        total: ocrStudents.length,
+                        matched: matchedCount,
+                        unmatched: ocrStudents.length - matchedCount
+                    });
+
+                    setMatchedStudentMap(matchMap);
+                    return matchMap;
+                } catch (err) {
+                    console.error('Error matching students:', err);
+                    setMatchedStudentMap([]);
+                    return [];
+                } finally {
+                    setIsMatching(false);
                 }
             };
 
@@ -1019,15 +1156,49 @@
 
                     setActivities(extractedData.activities);
                     setStudents(extractedData.students);
+
+                    // Auto-match class from OCR-extracted className
+                    let autoClassId = selectedClassId;
+                    if (extractedData.className && classes.length > 0) {
+                        const ocrClassName = extractedData.className.toLowerCase().trim();
+                        const matchedClass = classes.find(c =>
+                            c.class_name.toLowerCase().trim() === ocrClassName ||
+                            c.class_name.toLowerCase().trim().includes(ocrClassName) ||
+                            ocrClassName.includes(c.class_name.toLowerCase().trim())
+                        );
+                        if (matchedClass) {
+                            autoClassId = matchedClass.class_id;
+                            setSelectedClassId(autoClassId);
+                            debugLog('Auto-matched class', { ocrClassName, matchedName: matchedClass.class_name, classId: autoClassId });
+                        } else {
+                            console.warn('No class match found for OCR className:', extractedData.className);
+                        }
+                    }
+
                     setCurrentScreen('edit');
 
                     // Auto-save to database
                     await saveSession(extractedData, compressedImage);
+
+                    // Immediately match students to DB
+                    if (autoClassId) {
+                        await matchStudentsToDb(autoClassId, extractedData.students);
+                    }
                 } catch (err) {
                     setError(`Error: ${err.message}`);
                     console.error(err);
                 } finally {
                     setIsProcessing(false);
+                }
+            };
+
+            // Handle class change — re-match students
+            const handleClassChange = async (newClassId) => {
+                setSelectedClassId(newClassId || null);
+                if (newClassId && students.length > 0) {
+                    await matchStudentsToDb(newClassId, students);
+                } else {
+                    setMatchedStudentMap([]);
                 }
             };
 
@@ -1140,10 +1311,11 @@
                 setError('');
                 setIsProcessing(true);
 
-                console.log('=== STARTING REPORT GENERATION ===');
-                console.log('Number of students:', students.length);
-                console.log('Students from OCR:', JSON.stringify(students.map(s => s.name)));
-                console.log('Selected class ID:', selectedClassId);
+                debugLog('STARTING REPORT GENERATION', {
+                    studentCount: students.length,
+                    classId: selectedClassId,
+                    matchedCount: matchedStudentMap.filter(m => m !== null).length
+                });
 
                 try {
                     const sessionId = await saveSession(
@@ -1151,179 +1323,23 @@
                         uploadedImage
                     );
 
-                    // Fetch students from database with parent info
-                    // We fetch class-level students for name matching, and
-                    // center-wide students for center_student_id matching
-                    // (supports students temporarily attending a different class)
-                    let dbStudents = [];
-                    let centerStudents = [];
-                    if (selectedClassId) {
-                        // Get center_id for the selected class
-                        const selectedClass = classes.find(c => c.class_id === selectedClassId);
-                        const centerId = selectedClass?.center_id;
-
-                        // Fetch students for the selected class (for name matching)
-                        const { data: studentData, error: studentError } = await supabase
-                            .from('students')
-                            .select('student_id, student_name, center_student_id, parent_id')
-                            .eq('class_id', selectedClassId);
-
-                        if (studentError) {
-                            console.error('Error fetching students:', studentError);
-                        }
-
-                        // Fetch ALL students in the same center (for center_student_id matching)
-                        let centerStudentData = [];
-                        if (centerId) {
-                            const { data: allClassesInCenter } = await supabase
-                                .from('classes')
-                                .select('class_id')
-                                .eq('center_id', centerId);
-
-                            if (allClassesInCenter && allClassesInCenter.length > 0) {
-                                const allClassIds = allClassesInCenter.map(c => c.class_id);
-                                const { data: cStudents } = await supabase
-                                    .from('students')
-                                    .select('student_id, student_name, center_student_id, parent_id, class_id')
-                                    .in('class_id', allClassIds);
-                                centerStudentData = cStudents || [];
-                            }
-                        }
-
-                        console.log('=== RAW DATABASE RESPONSE ===');
-                        console.log('studentData (class):', studentData);
-                        console.log('centerStudentData (center-wide):', centerStudentData?.length);
-
-                        // Collect all unique parent IDs from both sets
-                        const allStudents = [...(studentData || []), ...centerStudentData];
-                        const parentIds = [...new Set(
-                            allStudents
-                                .filter(s => s.parent_id)
-                                .map(s => s.parent_id)
-                        )];
-
-                        let parentsMap = {};
-                        if (parentIds.length > 0) {
-                            const { data: parentsData } = await supabase
-                                .from('parents')
-                                .select('parent_id, parent_name, phone')
-                                .in('parent_id', parentIds);
-
-                            console.log('Parents data:', parentsData);
-
-                            if (parentsData) {
-                                parentsData.forEach(p => {
-                                    parentsMap[p.parent_id] = p;
-                                });
-                            }
-                        }
-
-                        // Combine student data with parent info
-                        if (studentData && studentData.length > 0) {
-                            dbStudents = studentData.map(s => ({
-                                ...s,
-                                parents: s.parent_id ? parentsMap[s.parent_id] : null
-                            }));
-                        }
-
-                        centerStudents = centerStudentData.map(s => ({
-                            ...s,
-                            parents: s.parent_id ? parentsMap[s.parent_id] : null
-                        }));
-                    } else {
-                        console.warn('No class selected! Cannot fetch students from database.');
+                    // Re-match if needed (e.g. user edited students after initial match)
+                    let currentMatches = matchedStudentMap;
+                    if (currentMatches.length !== students.length && selectedClassId) {
+                        currentMatches = await matchStudentsToDb(selectedClassId, students);
                     }
 
-                    console.log('=== DATABASE STUDENTS ===');
-                    console.log('Found', dbStudents.length, 'students in selected class');
-                    console.log('Found', centerStudents.length, 'students in center (for ID matching)');
-                    console.log('DB Students:', dbStudents.map(s => ({
-                        name: s.student_name,
-                        centerId: s.center_student_id,
-                        parentId: s.parent_id,
-                        parentPhone: s.parents?.phone
-                    })));
-                    // Helper function to match OCR student with database student
-                    // Matches by center_student_id first (center-wide), then by name (class-level)
-                    const findDbStudent = (ocrStudent) => {
-                        const ocrName = ocrStudent.name?.toLowerCase().trim();
-                        const ocrRoll = ocrStudent.center_student_id?.toString().trim();
+                    // Track unmatched students
+                    const unmatchedStudents = students
+                        .filter((_, i) => !currentMatches[i])
+                        .map(s => s.name);
 
-                        console.log(`Trying to match OCR student: "${ocrName}" (id: ${ocrRoll || 'none'}).`);
-
-                        // First try to match by center_student_id (searches center-wide)
-                        // This supports students temporarily attending a different class
-                        if (ocrRoll) {
-                            const paddedRoll = ocrRoll.padStart(4, '0');
-                            const matchById = centerStudents.find(s =>
-                                s.center_student_id?.toString().trim() === ocrRoll ||
-                                s.center_student_id?.toString().trim() === paddedRoll
-                            );
-                            if (matchById) {
-                                console.log(`  -> Matched by center_student_id to: ${matchById.student_name}`);
-                                return matchById;
-                            }
-                        }
-
-                        // Fallback to name matching (class-level only)
-                        for (const dbStudent of dbStudents) {
-                            const dbName = dbStudent.student_name?.toLowerCase().trim();
-
-                            // Exact match
-                            if (dbName === ocrName) {
-                                console.log(`  -> Exact match: ${dbStudent.student_name}`);
-                                return dbStudent;
-                            }
-
-                            // OCR name contains DB name (e.g., "John Smith" contains "John")
-                            if (ocrName && dbName && ocrName.includes(dbName)) {
-                                console.log(`  -> OCR contains DB name: ${dbStudent.student_name}`);
-                                return dbStudent;
-                            }
-
-                            // DB name contains OCR name
-                            if (ocrName && dbName && dbName.includes(ocrName)) {
-                                console.log(`  -> DB contains OCR name: ${dbStudent.student_name}`);
-                                return dbStudent;
-                            }
-
-                            // First name match (first word)
-                            const ocrFirstName = ocrName?.split(/\s+/)[0];
-                            const dbFirstName = dbName?.split(/\s+/)[0];
-                            if (ocrFirstName && dbFirstName && ocrFirstName === dbFirstName && ocrFirstName.length > 2) {
-                                console.log(`  -> First name match: ${dbStudent.student_name}`);
-                                return dbStudent;
-                            }
-                        }
-
-                        console.log(`  -> No match found for: ${ocrName}`);
-                        return null;
-                    };
-
-                    // Validate students against database and track unmatched
-                    const unmatchedStudents = [];
-                    const matchedStudents = [];
-
-                    students.forEach(student => {
-                        const dbStudent = findDbStudent(student);
-                        if (dbStudent) {
-                            matchedStudents.push({
-                                ...student,
-                                dbStudent
-                            });
-                        } else {
-                            unmatchedStudents.push(student.name);
-                        }
-                    });
-
-                    // Warn about unmatched students
                     if (unmatchedStudents.length > 0) {
-                        console.warn('=== UNMATCHED STUDENTS ===');
-                        console.warn('These students from the gradesheet were not found in the database:', unmatchedStudents);
+                        console.warn('Unmatched students:', unmatchedStudents);
                     }
 
-                    // Generate reports in parallel for speed
-                    const reportPromises = students.map(async (student) => {
+                    // Generate reports in parallel using stored matches
+                    const reportPromises = students.map(async (student, index) => {
                         const activityGrades = activities.map((activity, idx) =>
                             `${activity}: ${student.grades[idx] || 'Not graded'}`
                         ).join('\n');
@@ -1333,14 +1349,8 @@
                             activityGrades: activityGrades
                         });
 
-                        // Log the FULL raw response to diagnose empty reports
-                        console.log(`=== RAW API RESPONSE FOR ${student.name} ===`);
-                        console.log(JSON.stringify(data, null, 2));
-
                         const content = data.choices?.[0]?.message?.content?.trim() || '';
-
-                        // Try to match with database student to get info
-                        const dbStudent = findDbStudent(student);
+                        const dbStudent = currentMatches[index];
 
                         return {
                             studentName: student.name,
@@ -1350,13 +1360,12 @@
                             parentName: dbStudent?.parents?.parent_name || null,
                             report: content,
                             matchedInDb: !!dbStudent,
-                            _rawResponse: data  // Keep raw response for debugging
+                            _rawResponse: data
                         };
                     });
 
                     const results = await Promise.allSettled(reportPromises);
 
-                    // Separate successful and failed reports
                     const generatedReports = [];
                     const failedStudents = [];
 
@@ -1374,11 +1383,9 @@
                                     matchedInDb: report.matchedInDb
                                 });
                             } else {
-                                console.error(`Empty content for ${report.studentName}. Raw response:`, report._rawResponse);
                                 failedStudents.push({
                                     name: report.studentName,
-                                    error: 'Empty response from API',
-                                    rawResponse: report._rawResponse
+                                    error: 'Empty response from API'
                                 });
                             }
                         } else {
@@ -1389,20 +1396,10 @@
                         }
                     });
 
-                    console.log('=== FINAL REPORT COUNT ===');
-                    console.log('Generated reports:', generatedReports.length);
-                    console.log('Matched in DB:', generatedReports.filter(r => r.matchedInDb).length);
-                    console.log('Not matched in DB:', generatedReports.filter(r => !r.matchedInDb).length);
-                    console.log('Failed students:', failedStudents.length);
-                    if (failedStudents.length > 0) {
-                        console.log('Failed student details:', failedStudents);
-                    }
-
                     // Build warning message
                     let warningMsg = '';
                     if (failedStudents.length > 0) {
-                        const failedNames = failedStudents.map(s => s.name).join(', ');
-                        warningMsg += `Could not generate reports for: ${failedNames}. `;
+                        warningMsg += `Could not generate reports for: ${failedStudents.map(s => s.name).join(', ')}. `;
                     }
                     if (unmatchedStudents.length > 0) {
                         warningMsg += `Students not found in database (reports won't be saved): ${unmatchedStudents.join(', ')}. `;
@@ -1603,6 +1600,37 @@
                 }
             };
 
+            // Load past reports for a student
+            const loadStudentHistory = async (studentId) => {
+                if (!studentId || studentHistory[studentId]) return;
+
+                try {
+                    const { data, error } = await supabase
+                        .from('reports')
+                        .select(`
+                            report_id, report_body, created_at, sent_at,
+                            sessions (session_id, session_date, classes (class_name))
+                        `)
+                        .eq('student_id', studentId)
+                        .neq('session_id', currentSessionId)
+                        .order('created_at', { ascending: false })
+                        .limit(10);
+
+                    if (error) throw error;
+
+                    setStudentHistory(prev => ({
+                        ...prev,
+                        [studentId]: data || []
+                    }));
+                } catch (err) {
+                    console.error('Failed to load student history:', err);
+                    setStudentHistory(prev => ({
+                        ...prev,
+                        [studentId]: []
+                    }));
+                }
+            };
+
             // Upload Screen
             if (currentScreen === 'upload') {
                 return (
@@ -1695,19 +1723,27 @@
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Class</label>
                                 <select
                                     value={selectedClassId || ''}
-                                    onChange={(e) => setSelectedClassId(e.target.value || null)}
+                                    onChange={(e) => handleClassChange(e.target.value)}
                                     className="w-full max-w-xs px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-teal"
                                 >
                                     <option value="">-- Select a class --</option>
                                     {classes.map(c => (
                                         <option key={c.class_id} value={c.class_id}>
-                                            {c.class_name} (ID: {c.class_id})
+                                            {c.class_name}
                                         </option>
                                     ))}
                                 </select>
                                 {!selectedClassId && (
                                     <p className="mt-1 text-sm text-amber-600">
                                         Please select a class so students can be matched to database records.
+                                    </p>
+                                )}
+                                {isMatching && (
+                                    <p className="mt-1 text-sm text-brand-teal">Matching students...</p>
+                                )}
+                                {!isMatching && selectedClassId && matchedStudentMap.length > 0 && (
+                                    <p className="mt-1 text-sm text-green-700">
+                                        {matchedStudentMap.filter(m => m !== null).length} of {students.length} students matched
                                     </p>
                                 )}
                             </div>
@@ -1773,18 +1809,33 @@
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {students.map((student, studentIndex) => (
-                                            <tr key={studentIndex} className="border-b hover:bg-gray-50">
-                                                <td className="px-3 py-3 border-r border-gray-300 sticky left-0 bg-white">
-                                                    <input
-                                                        type="text"
-                                                        value={student.name}
-                                                        onChange={(e) => updateStudentName(studentIndex, e.target.value)}
-                                                        className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-brand-teal"
-                                                        placeholder="Student name"
-                                                    />
+                                        {students.map((student, studentIndex) => {
+                                            const matched = matchedStudentMap[studentIndex];
+                                            return (
+                                            <tr key={studentIndex} className={`border-b hover:bg-gray-50 ${matched ? '' : selectedClassId ? 'bg-amber-50' : ''}`}>
+                                                <td className={`px-3 py-3 border-r border-gray-300 sticky left-0 ${matched ? 'bg-white' : selectedClassId ? 'bg-amber-50' : 'bg-white'}`}>
+                                                    <div className="flex items-center gap-1">
+                                                        {selectedClassId && matchedStudentMap.length > 0 && (
+                                                            <span title={matched ? `Matched: ${matched.student_name}` : 'Not found in database'} className="flex-shrink-0">
+                                                                {matched
+                                                                    ? <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"/></svg>
+                                                                    : <svg className="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01M12 3a9 9 0 100 18 9 9 0 000-18z"/></svg>
+                                                                }
+                                                            </span>
+                                                        )}
+                                                        <input
+                                                            type="text"
+                                                            value={student.name}
+                                                            onChange={(e) => updateStudentName(studentIndex, e.target.value)}
+                                                            className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-brand-teal"
+                                                            placeholder="Student name"
+                                                        />
+                                                    </div>
+                                                    {matched && matched.student_name !== student.name && (
+                                                        <p className="text-xs text-green-600 mt-1 ml-5">DB: {matched.student_name}</p>
+                                                    )}
                                                 </td>
-                                                <td className="px-3 py-3 border-r border-gray-300 bg-white">
+                                                <td className={`px-3 py-3 border-r border-gray-300 ${matched ? 'bg-white' : selectedClassId ? 'bg-amber-50' : 'bg-white'}`}>
                                                     <input
                                                         type="text"
                                                         value={student.center_student_id || ''}
@@ -1817,7 +1868,8 @@
                                                     </button>
                                                 </td>
                                             </tr>
-                                        ))}
+                                        );
+                                        })}
                                     </tbody>
                                 </table>
                             </div>
@@ -1844,6 +1896,8 @@
                                         setActivities([]);
                                         setUploadedImage(null);
                                         setCurrentSessionId(null);
+                                        setMatchedStudentMap([]);
+                                        setStudentHistory({});
                                     }}
                                     className="px-6 py-3 bg-gray-200 text-gray-800 rounded-lg font-medium hover:bg-gray-300 transition"
                                 >
@@ -1959,7 +2013,46 @@
                                             className="w-full h-48 p-3 border border-gray-300 rounded-lg text-gray-700 leading-relaxed focus:ring-2 focus:ring-brand-teal focus:border-transparent resize-y"
                                             placeholder="Report content..."
                                         />
-                                        <p className="mt-2 text-xs text-gray-500">You can edit the report text above before sending</p>
+                                        <div className="mt-2 flex items-center justify-between">
+                                            <p className="text-xs text-gray-500">You can edit the report text above before sending</p>
+                                            {report.studentId && (
+                                                <button
+                                                    onClick={() => loadStudentHistory(report.studentId)}
+                                                    className="text-xs text-brand-teal hover:underline"
+                                                >
+                                                    {studentHistory[report.studentId] ? 'Hide History' : 'View History'}
+                                                </button>
+                                            )}
+                                        </div>
+                                        {report.studentId && studentHistory[report.studentId] && (
+                                            <div className="mt-3 border-t border-gray-200 pt-3">
+                                                <h4 className="text-sm font-semibold text-gray-700 mb-2">Past Reports ({studentHistory[report.studentId].length})</h4>
+                                                {studentHistory[report.studentId].length === 0 ? (
+                                                    <p className="text-xs text-gray-500">No previous reports found for this student.</p>
+                                                ) : (
+                                                    <div className="space-y-2 max-h-60 overflow-y-auto">
+                                                        {studentHistory[report.studentId].map((hist) => (
+                                                            <div key={hist.report_id} className="bg-gray-50 rounded p-3 text-sm">
+                                                                <div className="flex items-center gap-2 mb-1">
+                                                                    <span className="font-medium text-gray-700">
+                                                                        {new Date(hist.sessions?.session_date || hist.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                                                    </span>
+                                                                    {hist.sessions?.classes?.class_name && (
+                                                                        <span className="text-xs bg-teal-50 text-brand-teal px-2 py-0.5 rounded">
+                                                                            {hist.sessions.classes.class_name}
+                                                                        </span>
+                                                                    )}
+                                                                    {hist.sent_at && (
+                                                                        <span className="text-xs bg-green-50 text-green-700 px-2 py-0.5 rounded">Sent</span>
+                                                                    )}
+                                                                </div>
+                                                                <p className="text-gray-600 text-xs whitespace-pre-line line-clamp-3">{hist.report_body}</p>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
                                 ))}
                             </div>
@@ -1973,6 +2066,8 @@
                                         setReports([]);
                                         setUploadedImage(null);
                                         setCurrentSessionId(null);
+                                        setMatchedStudentMap([]);
+                                        setStudentHistory({});
                                     }}
                                     className="px-6 py-3 bg-brand-teal text-white rounded-lg font-medium hover:bg-brand-teal-dark transition"
                                 >
