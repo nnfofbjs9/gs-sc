@@ -439,14 +439,17 @@
 
             const loadSessions = async () => {
                 try {
-                    const { data, error } = await supabase
+                    let query = supabase
                         .from('sessions')
                         .select(`
                             *,
                             classes (class_name, center_id),
                             reports (report_id, student_id)
-                        `)
-                        .eq('teacher_id', user.id)
+                        `);
+                    if (!DEBUG_MODE) {
+                        query = query.eq('teacher_id', user.id);
+                    }
+                    const { data, error } = await query
                         .order('session_date', { ascending: false })
                         .limit(50);
 
@@ -581,10 +584,13 @@
             const loadData = async () => {
                 try {
                     // Load classes
-                    const { data: classData, error: classError } = await supabase
+                    let classQuery = supabase
                         .from('classes')
-                        .select('*, centers(center_name), students(student_id, student_name)')
-                        .eq('teacher_id', user.id)
+                        .select('*, centers(center_name), students(student_id, student_name)');
+                    if (!DEBUG_MODE) {
+                        classQuery = classQuery.eq('teacher_id', user.id);
+                    }
+                    const { data: classData, error: classError } = await classQuery
                         .order('class_name');
 
                     if (classError) throw classError;
@@ -788,17 +794,17 @@
             }, [initialSession]);
 
             const loadClasses = async () => {
-                const { data, error } = await supabase
+                let query = supabase
                     .from('classes')
                     .select('class_id, class_name, center_id')
-                    .eq('teacher_id', user.id)
                     .eq('is_active', true);
+                if (!DEBUG_MODE) {
+                    query = query.eq('teacher_id', user.id);
+                }
+                const { data, error } = await query;
 
                 if (!error && data) {
                     setClasses(data);
-                    if (data.length > 0 && !selectedClassId) {
-                        setSelectedClassId(data[0].class_id);
-                    }
                 }
             };
 
