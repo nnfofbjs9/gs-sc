@@ -765,6 +765,7 @@
             const [isSavingReports, setIsSavingReports] = useState(false);
             const [colWidths, setColWidths] = useState({ name: 180, centerId: 120 });
             const [matchedStudentMap, setMatchedStudentMap] = useState([]);
+            const [centerStudentsList, setCenterStudentsList] = useState([]);
             const [isMatching, setIsMatching] = useState(false);
             const [studentHistory, setStudentHistory] = useState({});
 
@@ -892,6 +893,8 @@
                         parents: s.parent_id ? parentsMap[s.parent_id] : null
                     }));
 
+                    setCenterStudentsList(centerStudents);
+
                     // Helper function to match OCR student with database student
                     const findDbStudent = (ocrStudent) => {
                         const ocrName = ocrStudent.name?.toLowerCase().trim();
@@ -935,6 +938,23 @@
                     });
 
                     setMatchedStudentMap(matchMap);
+
+                    // Validate OCR center_student_ids and update names from DB
+                    const validatedStudents = ocrStudents.map((student, i) => {
+                        const ocrId = student.center_student_id?.toString().trim();
+                        const matched = matchMap[i];
+                        if (matched) {
+                            return { ...student, center_student_id: matched.center_student_id?.toString().trim() || '', name: matched.student_name };
+                        }
+                        // Invalid OCR ID: clear it so dropdown shows blank
+                        if (ocrId) {
+                            const valid = centerStudents.find(s => s.center_student_id?.toString().trim() === ocrId || s.center_student_id?.toString().trim() === ocrId.padStart(4, '0'));
+                            if (!valid) return { ...student, center_student_id: '' };
+                        }
+                        return student;
+                    });
+                    setStudents(validatedStudents);
+
                     return matchMap;
                 } catch (err) {
                     console.error('Error matching students:', err);
@@ -1223,6 +1243,12 @@
             const updateStudentCenterId = (index, value) => {
                 const updated = [...students];
                 updated[index].center_student_id = value;
+                const matchedCenterStudent = centerStudentsList.find(
+                    s => s.center_student_id?.toString().trim() === value
+                );
+                if (matchedCenterStudent) {
+                    updated[index].name = matchedCenterStudent.student_name;
+                }
                 setStudents(updated);
             };
 
@@ -1828,26 +1854,25 @@
                                                                 }
                                                             </span>
                                                         )}
-                                                        <input
-                                                            type="text"
-                                                            value={student.name}
-                                                            onChange={(e) => updateStudentName(studentIndex, e.target.value)}
-                                                            className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-brand-teal"
-                                                            placeholder="Student name"
-                                                        />
+                                                        <span className="w-full px-2 py-1 text-gray-800">{student.name || '—'}</span>
                                                     </div>
-                                                    {matched && matched.student_name !== student.name && (
-                                                        <p className="text-xs text-green-600 mt-1 ml-5">DB: {matched.student_name}</p>
-                                                    )}
                                                 </td>
                                                 <td className={`px-3 py-3 border-r border-gray-300 ${matched ? 'bg-white' : selectedClassId ? 'bg-amber-50' : 'bg-white'}`}>
-                                                    <input
-                                                        type="text"
+                                                    <select
                                                         value={student.center_student_id || ''}
                                                         onChange={(e) => updateStudentCenterId(studentIndex, e.target.value)}
                                                         className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-brand-teal"
-                                                        placeholder="e.g. 0001"
-                                                    />
+                                                    >
+                                                        <option value="">-- Select Student --</option>
+                                                        {centerStudentsList
+                                                            .sort((a, b) => (a.center_student_id || '').localeCompare(b.center_student_id || ''))
+                                                            .map(cs => (
+                                                                <option key={cs.student_id} value={cs.center_student_id?.toString().trim()}>
+                                                                    {cs.center_student_id} - {cs.student_name}
+                                                                </option>
+                                                            ))
+                                                        }
+                                                    </select>
                                                 </td>
                                                 {student.grades.map((grade, gradeIndex) => (
                                                     <td key={gradeIndex} className="px-3 py-3 text-center">
