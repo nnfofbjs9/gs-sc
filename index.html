@@ -784,7 +784,6 @@
             const [centerStudentsList, setCenterStudentsList] = useState([]);
             const [isMatching, setIsMatching] = useState(false);
             const [studentHistory, setStudentHistory] = useState({});
-            const [showGuestPicker, setShowGuestPicker] = useState(false);
 
             const startResize = (colKey, e) => {
                 e.preventDefault();
@@ -1294,19 +1293,6 @@
                     center_student_id: '',
                     grades: new Array(activities.length).fill('')
                 }]);
-            };
-
-            const addGuestStudent = (centerStudent) => {
-                const newStudent = {
-                    name: centerStudent.student_name,
-                    center_student_id: centerStudent.center_student_id?.toString().trim() || '',
-                    grades: new Array(activities.length).fill('')
-                };
-                const newStudents = [...students, newStudent];
-                setStudents(newStudents);
-                // Update matched map — the guest is a valid DB student
-                setMatchedStudentMap(prev => [...prev, centerStudent]);
-                setShowGuestPicker(false);
             };
 
             const deleteStudent = (index) => {
@@ -1941,40 +1927,6 @@
                                 >
                                     + Add Student
                                 </button>
-                                {selectedClassId && centerStudentsList.length > 0 && (
-                                    <div className="relative">
-                                        <button
-                                            onClick={() => setShowGuestPicker(!showGuestPicker)}
-                                            className="px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition"
-                                        >
-                                            + Guest Student
-                                        </button>
-                                        {showGuestPicker && (
-                                            <div className="absolute bottom-full mb-2 left-0 bg-white border border-gray-300 rounded-lg shadow-xl z-50 w-80 max-h-64 overflow-y-auto">
-                                                <div className="p-2 border-b border-gray-200 text-xs text-gray-500 font-medium sticky top-0 bg-white">
-                                                    Select a student from another class
-                                                </div>
-                                                {centerStudentsList
-                                                    .filter(cs => cs.class_id !== selectedClassId)
-                                                    .filter(cs => !students.some(s => s.center_student_id === cs.center_student_id?.toString().trim()))
-                                                    .sort((a, b) => (a.center_student_id || '').localeCompare(b.center_student_id || ''))
-                                                    .map(cs => (
-                                                        <button
-                                                            key={cs.student_id}
-                                                            onClick={() => addGuestStudent(cs)}
-                                                            className="w-full text-left px-3 py-2 hover:bg-blue-50 text-sm border-b border-gray-100 last:border-0"
-                                                        >
-                                                            <span className="font-medium">{cs.center_student_id}</span> — {cs.student_name}
-                                                        </button>
-                                                    ))
-                                                }
-                                                {centerStudentsList.filter(cs => cs.class_id !== selectedClassId).filter(cs => !students.some(s => s.center_student_id === cs.center_student_id?.toString().trim())).length === 0 && (
-                                                    <p className="px-3 py-2 text-sm text-gray-400">No other students available</p>
-                                                )}
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
                                 <button
                                     onClick={async () => {
                                         if (!selectedClassId) {
@@ -2031,7 +1983,7 @@
 
                             {!isProcessing && selectedClassId && matchedStudentMap.length > 0 && matchedStudentMap.some(m => m === null) && (
                                 <p className="mt-3 text-sm text-amber-700 bg-amber-50 border border-amber-200 px-4 py-2 rounded-lg">
-                                    All students must be matched to database records before generating reports. Use the Center Student ID dropdown to match unmatched students, or add a guest student from another class.
+                                    All students must be matched to database records before generating reports. Use the Center Student ID dropdown to match unmatched students, or use + Add Student and pick them from the dropdown.
                                 </p>
                             )}
 
