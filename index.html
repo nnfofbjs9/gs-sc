@@ -1880,14 +1880,20 @@
                                                         className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-brand-teal"
                                                     >
                                                         <option value="">-- Select Student --</option>
-                                                        {centerStudentsList
-                                                            .sort((a, b) => (a.center_student_id || '').localeCompare(b.center_student_id || ''))
-                                                            .map(cs => (
-                                                                <option key={cs.student_id} value={cs.center_student_id?.toString().trim()}>
-                                                                    {cs.center_student_id} - {cs.student_name}
-                                                                </option>
-                                                            ))
-                                                        }
+                                                        {(() => {
+                                                            const usedIds = students
+                                                                .filter((_, i) => i !== studentIndex)
+                                                                .map(s => s.center_student_id?.toString().trim())
+                                                                .filter(Boolean);
+                                                            return centerStudentsList
+                                                                .filter(cs => !usedIds.includes(cs.center_student_id?.toString().trim()))
+                                                                .sort((a, b) => (a.center_student_id || '').localeCompare(b.center_student_id || ''))
+                                                                .map(cs => (
+                                                                    <option key={cs.student_id} value={cs.center_student_id?.toString().trim()}>
+                                                                        {cs.center_student_id} - {cs.student_name}
+                                                                    </option>
+                                                                ));
+                                                        })()}
                                                     </select>
                                                 </td>
                                                 {student.grades.map((grade, gradeIndex) => (

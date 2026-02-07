@@ -846,10 +846,12 @@
         // =====================================================
         // STUDENT & PARENT MANAGEMENT COMPONENT
         // =====================================================
-        function StudentManagement() {
+        function StudentManagement({ user, teacher }) {
             const [students, setStudents] = useState([]);
             const [parents, setParents] = useState([]);
             const [classes, setClasses] = useState([]);
+            const [centers, setCenters] = useState([]);
+            const [selectedCenterId, setSelectedCenterId] = useState('');
             const [loading, setLoading] = useState(true);
             const [error, setError] = useState('');
             const [success, setSuccess] = useState('');
@@ -883,6 +885,8 @@
 
             const loadData = async () => {
                 try {
+                    const isSiteAdmin = teacher?.role === 'site_admin';
+
                     const [studentsRes, parentsRes, classesRes] = await Promise.all([
                         supabase.from('students').select('*, parents(parent_name, email, phone), classes(class_name, class_code)').order('student_name'),
                         supabase.from('parents').select('*').order('parent_name'),
@@ -896,8 +900,39 @@
                     setStudents(studentsRes.data || []);
                     setParents(parentsRes.data || []);
                     setClasses(classesRes.data || []);
-                    if (classesRes.data?.length > 0) {
-                        setStudentForm(prev => ({ ...prev, class_id: classesRes.data[0].class_id }));
+
+                    // Load centers: site_admin sees all, others see only their assigned centers
+                    let centersData = [];
+                    if (isSiteAdmin) {
+                        const { data, error: cErr } = await supabase
+                            .from('centers')
+                            .select('*')
+                            .eq('is_active', true)
+                            .order('center_name');
+                        if (!cErr && data) centersData = data;
+                    } else {
+                        const { data: tcData } = await supabase
+                            .from('teacher_centers')
+                            .select('center_id, centers(center_id, center_name, is_active)')
+                            .eq('teacher_id', user.id);
+                        if (tcData) {
+                            centersData = tcData
+                                .map(tc => tc.centers)
+                                .filter(c => c && c.is_active);
+                        }
+                    }
+                    setCenters(centersData);
+
+                    // Auto-select center if only one available
+                    const autoCenter = centersData.length === 1 ? centersData[0].center_id : '';
+                    setSelectedCenterId(autoCenter);
+
+                    // Set default class based on auto-selected center
+                    const filteredClasses = autoCenter
+                        ? (classesRes.data || []).filter(c => c.center_id === autoCenter)
+                        : classesRes.data || [];
+                    if (filteredClasses.length > 0) {
+                        setStudentForm(prev => ({ ...prev, class_id: filteredClasses[0].class_id }));
                     }
                 } catch (err) {
                     setError('Failed to load data: ' + err.message);
@@ -979,7 +1014,10 @@
 
             const resetForm = () => {
                 setParentForm({ parent_name: '', email: '', phone: '', relationship_type: 'parent', preferred_contact: 'email' });
-                setStudentForm({ student_name: '', date_of_birth: '', class_id: classes[0]?.class_id || '', notes: '' });
+                const defaultCenter = centers.length === 1 ? centers[0].center_id : '';
+                setSelectedCenterId(defaultCenter);
+                const filtered = defaultCenter ? classes.filter(c => c.center_id === defaultCenter) : classes;
+                setStudentForm({ student_name: '', date_of_birth: '', class_id: filtered[0]?.class_id || '', notes: '' });
                 setParentMode('new');
                 setSelectedParentId('');
             };
@@ -1195,13 +1233,30 @@
                                                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" required />
                                         </div>
                                         <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">Center *</label>
+                                            <select value={selectedCenterId}
+                                                onChange={(e) => {
+                                                    const cid = e.target.value;
+                                                    setSelectedCenterId(cid);
+                                                    const filtered = cid ? classes.filter(c => c.center_id === cid) : classes;
+                                                    setStudentForm(prev => ({ ...prev, class_id: filtered[0]?.class_id || '' }));
+                                                }}
+                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" required>
+                                                {centers.length !== 1 && <option value="">-- Select Center --</option>}
+                                                {centers.map(c => (
+                                                    <option key={c.center_id} value={c.center_id}>{c.center_name}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <div>
                                             <label className="block text-sm font-medium text-gray-700 mb-1">Class *</label>
                                             <select value={studentForm.class_id}
                                                 onChange={(e) => setStudentForm({ ...studentForm, class_id: e.target.value })}
                                                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" required>
-                                                {classes.map(c => (
+                                                {!selectedCenterId && <option value="">-- Select a center first --</option>}
+                                                {(selectedCenterId ? classes.filter(c => c.center_id === selectedCenterId) : classes).map(c => (
                                                     <option key={c.class_id} value={c.class_id}>
-                                                        {c.class_name} ({c.centers?.center_name}) {c.class_code ? `[${c.class_code}]` : ''}
+                                                        {c.class_name} {c.class_code ? `[${c.class_code}]` : ''}
                                                     </option>
                                                 ))}
                                             </select>
@@ -1378,7 +1433,7 @@
                         </div>
 
                         {/* Tab Content */}
-                        {activeTab === 'students' && <StudentManagement />}
+                        {activeTab === 'students' && <StudentManagement user={user} teacher={teacher} />}
                         {activeTab === 'activities' && <ActivityManagement />}
                         {activeTab === 'centers' && <CenterManagement />}
                         {activeTab === 'teachers' && <TeacherManagement />}
