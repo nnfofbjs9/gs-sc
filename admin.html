@@ -693,6 +693,7 @@
                     const { data: teachersData, error: teachersError } = await supabase
                         .from('teachers')
                         .select('*, teacher_centers(center_id, centers(center_name))')
+                        .neq('role', 'site_admin')
                         .order('teacher_name');
                     
                     if (teachersError) throw teachersError;
