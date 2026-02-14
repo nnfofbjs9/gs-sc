@@ -459,7 +459,7 @@
                         .from('sessions')
                         .select(`
                             *,
-                            batches (batch_name, center_id),
+                            batches (batch_name, center_id, level),
                             reports (report_id, student_id)
                         `);
                     if (!DEBUG_MODE) {
@@ -535,6 +535,9 @@
                                                     {cls.batches?.batch_name || 'Unnamed Session'}
                                                 </h3>
                                                 <p className="text-sm text-gray-600">
+                                                    {cls.batches?.level && cls.class_number && (
+                                                        <span>Level {cls.batches.level}, Class {cls.class_number} - </span>
+                                                    )}
                                                     {new Date(cls.session_date).toLocaleDateString('en-GB', {
                                                         weekday: 'long',
                                                         year: 'numeric',
@@ -1131,6 +1134,7 @@
                         session_date: new Date().toISOString().split('T')[0],
                         ocr_raw: ocrData,
                         ocr_processed: ocrData,
+                        class_number: ocrData.classNumber || null,
                         status: 'draft'
                     };
 

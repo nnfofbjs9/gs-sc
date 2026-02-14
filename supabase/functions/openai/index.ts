@@ -59,11 +59,11 @@ serve(async (req) => {
 3. Activity/assessment names (usually column headers)
 4. Grades for each student per activity
 5. Batch code: a short numeric code (e.g. "001", "002") printed on the topsheet, usually near the top
-6. Session number visible on the top left of the sheet (represents class progression 1-36 within a level)
+6. Class number visible on the top left of the sheet (represents curriculum progression 1-36 within a level)
 
 Return ONLY a valid JSON object in this EXACT format:
 {
-  "sessionNumber": "1" or null,
+  "classNumber": "1" or null,
   "batchCode": "001" or null,
   "activities": ["Activity 1", "Activity 2", ...],
   "students": [
