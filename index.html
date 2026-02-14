@@ -792,6 +792,7 @@
             const [extractedClassNumber, setExtractedClassNumber] = useState(initialSession?.ocr_processed?.classNumber || null);
             const [activityMapping, setActivityMapping] = useState(initialSession?.ocr_processed?.activityMapping || []);
             const [ocrWarnings, setOcrWarnings] = useState(initialSession?.ocr_processed?.warnings || []);
+            const [showAllBatches, setShowAllBatches] = useState(false);
 
             const startResize = (colKey, e) => {
                 e.preventDefault();
@@ -1928,6 +1929,20 @@
                                 <span><strong>X</strong> = Absent</span>
                             </div>
 
+                            {selectedBatchId && (
+                                <div className="mb-3 flex items-center">
+                                    <label className="flex items-center text-sm text-gray-600 cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            checked={showAllBatches}
+                                            onChange={(e) => setShowAllBatches(e.target.checked)}
+                                            className="mr-2 h-4 w-4 text-brand-teal focus:ring-brand-teal rounded"
+                                        />
+                                        Show students from other batches
+                                    </label>
+                                </div>
+                            )}
+
                             <div className="bg-white rounded-lg shadow overflow-x-auto">
                                 <table className="border-collapse" style={{ tableLayout: 'fixed', width: colWidths.name + colWidths.centerId + activities.length * 100 + 80 }}>
                                     <colgroup>
@@ -1977,9 +1992,10 @@
                                     <tbody>
                                         {students.map((student, studentIndex) => {
                                             const matched = matchedStudentMap[studentIndex];
+                                            const isVisitingStudent = matched && matched.batch_id !== selectedBatchId;
                                             return (
                                             <tr key={studentIndex} className={`border-b hover:bg-gray-50 ${matched ? '' : selectedBatchId ? 'bg-amber-50' : ''}`}>
-                                                <td className={`px-3 py-3 border-r border-gray-300 sticky left-0 ${matched ? 'bg-white' : selectedBatchId ? 'bg-amber-50' : 'bg-white'}`}>
+                                                <td className={`px-3 py-3 border-r border-gray-300 sticky left-0 ${matched ? 'bg-white' : selectedBatchId ? 'bg-amber-50' : 'bg-white'} ${isVisitingStudent ? 'border-l-4 border-l-blue-500' : ''}`}>
                                                     <div className="flex items-center gap-1">
                                                         {selectedBatchId && matchedStudentMap.length > 0 && (
                                                             <span title={matched ? `Matched: ${matched.student_name}` : 'Not found in database'} className="flex-shrink-0">
@@ -1990,6 +2006,11 @@
                                                             </span>
                                                         )}
                                                         <span className="w-full px-2 py-1 text-gray-800">{student.name || '—'}</span>
+                                                        {isVisitingStudent && (
+                                                            <span className="ml-1 px-1.5 py-0.5 text-xs bg-blue-100 text-blue-700 rounded whitespace-nowrap">
+                                                                Visiting
+                                                            </span>
+                                                        )}
                                                     </div>
                                                 </td>
                                                 <td className={`px-3 py-3 border-r border-gray-300 ${matched ? 'bg-white' : selectedBatchId ? 'bg-amber-50' : 'bg-white'}`}>
@@ -2004,14 +2025,53 @@
                                                                 .filter((_, i) => i !== studentIndex)
                                                                 .map(s => s.center_student_id?.toString().trim())
                                                                 .filter(Boolean);
-                                                            return centerStudentsList
-                                                                .filter(cs => !usedIds.includes(cs.center_student_id?.toString().trim()))
-                                                                .sort((a, b) => (a.center_student_id || '').localeCompare(b.center_student_id || ''))
-                                                                .map(cs => (
+
+                                                            // Filter students based on toggle state
+                                                            const filteredStudents = centerStudentsList
+                                                                .filter(cs => {
+                                                                    // Filter out already-used IDs
+                                                                    if (usedIds.includes(cs.center_student_id?.toString().trim())) return false;
+
+                                                                    // If toggle is OFF, show only selected batch
+                                                                    if (!showAllBatches) return cs.batch_id === selectedBatchId;
+
+                                                                    // If toggle is ON, show all batches
+                                                                    return true;
+                                                                })
+                                                                .sort((a, b) => (a.center_student_id || '').localeCompare(b.center_student_id || ''));
+
+                                                            // Group students by batch
+                                                            const studentsByBatch = filteredStudents.reduce((acc, cs) => {
+                                                                const batchId = cs.batch_id;
+                                                                if (!acc[batchId]) acc[batchId] = [];
+                                                                acc[batchId].push(cs);
+                                                                return acc;
+                                                            }, {});
+
+                                                            // Render with optgroup if multiple batches and toggle is ON
+                                                            if (showAllBatches && Object.keys(studentsByBatch).length > 1) {
+                                                                return Object.entries(studentsByBatch).map(([batchId, students]) => {
+                                                                    const batch = batches.find(b => b.batch_id === batchId);
+                                                                    const batchLabel = batch ? `${batch.batch_code} - ${batch.batch_name}` : 'Unknown Batch';
+
+                                                                    return (
+                                                                        <optgroup key={batchId} label={batchLabel}>
+                                                                            {students.map(cs => (
+                                                                                <option key={cs.student_id} value={cs.center_student_id?.toString().trim()}>
+                                                                                    {cs.center_student_id} - {cs.student_name}
+                                                                                </option>
+                                                                            ))}
+                                                                        </optgroup>
+                                                                    );
+                                                                });
+                                                            } else {
+                                                                // Single batch or toggle OFF - no grouping needed
+                                                                return filteredStudents.map(cs => (
                                                                     <option key={cs.student_id} value={cs.center_student_id?.toString().trim()}>
                                                                         {cs.center_student_id} - {cs.student_name}
                                                                     </option>
                                                                 ));
+                                                            }
                                                         })()}
                                                     </select>
                                                 </td>
