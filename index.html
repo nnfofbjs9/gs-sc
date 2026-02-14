@@ -857,32 +857,32 @@
                     const selectedBatch = batches.find(b => b.batch_id === batchId);
                     const centerId = selectedBatch?.center_id;
 
-                    // Fetch students for the selected batch (for name matching)
-                    const { data: batchStudents, error: studentError } = await supabase
-                        .from('students')
-                        .select('student_id, student_name, center_student_id, parent_id')
-                        .eq('batch_id', batchId);
+                    // OPTIMIZATION: Fetch batch students and all batches in center in parallel
+                    const [batchStudentsRes, allBatchesRes] = await Promise.all([
+                        supabase
+                            .from('students')
+                            .select('student_id, student_name, center_student_id, parent_id')
+                            .eq('batch_id', batchId),
+                        centerId ? supabase
+                            .from('batches')
+                            .select('batch_id')
+                            .eq('center_id', centerId) : Promise.resolve({ data: null })
+                    ]);
 
-                    if (studentError) {
-                        console.error('Error fetching students:', studentError);
+                    const batchStudents = batchStudentsRes.data;
+                    if (batchStudentsRes.error) {
+                        console.error('Error fetching students:', batchStudentsRes.error);
                     }
 
                     // Fetch ALL students in the same center (for center_student_id matching)
                     let centerStudentData = [];
-                    if (centerId) {
-                        const { data: allBatchesInCenter } = await supabase
-                            .from('batches')
-                            .select('batch_id')
-                            .eq('center_id', centerId);
-
-                        if (allBatchesInCenter && allBatchesInCenter.length > 0) {
-                            const allBatchIds = allBatchesInCenter.map(b => b.batch_id);
-                            const { data: cStudents } = await supabase
-                                .from('students')
-                                .select('student_id, student_name, center_student_id, parent_id, batch_id')
-                                .in('batch_id', allBatchIds);
-                            centerStudentData = cStudents || [];
-                        }
+                    if (allBatchesRes.data && allBatchesRes.data.length > 0) {
+                        const allBatchIds = allBatchesRes.data.map(b => b.batch_id);
+                        const { data: cStudents } = await supabase
+                            .from('students')
+                            .select('student_id, student_name, center_student_id, parent_id, batch_id')
+                            .in('batch_id', allBatchIds);
+                        centerStudentData = cStudents || [];
                     }
 
                     // Collect all unique parent IDs from both sets
@@ -1906,7 +1906,10 @@
                                     </p>
                                 )}
                                 {isMatching && (
-                                    <p className="mt-1 text-sm text-brand-teal">Matching students...</p>
+                                    <div className="mt-1 flex items-center gap-2">
+                                        <div className="inline-block animate-spin rounded-full h-4 w-4 border-2 border-brand-teal border-t-transparent"></div>
+                                        <p className="text-sm text-brand-teal">Verifying students...</p>
+                                    </div>
                                 )}
                                 {!isMatching && selectedBatchId && matchedStudentMap.length > 0 && (
                                     <p className="mt-1 text-sm text-green-700">
@@ -1943,7 +1946,10 @@
                                 </div>
                             )}
 
-                            <div className="bg-white rounded-lg shadow overflow-x-auto">
+                            <div className={`bg-white rounded-lg shadow overflow-x-auto ${isMatching ? 'relative' : ''}`}>
+                                {isMatching && (
+                                    <div className="absolute inset-0 bg-gray-100 bg-opacity-60 z-10 rounded-lg"></div>
+                                )}
                                 <table className="border-collapse" style={{ tableLayout: 'fixed', width: colWidths.name + colWidths.centerId + activities.length * 100 + 80 }}>
                                     <colgroup>
                                         <col style={{ width: colWidths.name }} />
@@ -1992,7 +1998,7 @@
                                     <tbody>
                                         {students.map((student, studentIndex) => {
                                             const matched = matchedStudentMap[studentIndex];
-                                            const isVisitingStudent = matched && matched.batch_id !== selectedBatchId;
+                                            const isVisitingStudent = matched && selectedBatchId && matched.batch_id && matched.batch_id !== selectedBatchId;
                                             return (
                                             <tr key={studentIndex} className={`border-b hover:bg-gray-50 ${matched ? '' : selectedBatchId ? 'bg-amber-50' : ''}`}>
                                                 <td className={`px-3 py-3 border-r border-gray-300 sticky left-0 ${matched ? 'bg-white' : selectedBatchId ? 'bg-amber-50' : 'bg-white'} ${isVisitingStudent ? 'border-l-4 border-l-blue-500' : ''}`}>
