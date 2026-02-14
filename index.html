@@ -370,10 +370,10 @@
                                     History
                                 </button>
                                 <button
-                                    onClick={() => onViewChange('classes')}
-                                    className={`px-3 py-1 rounded ${currentView === 'classes' ? 'bg-teal-100 text-brand-teal' : 'text-gray-600 hover:text-gray-800'}`}
+                                    onClick={() => onViewChange('batches')}
+                                    className={`px-3 py-1 rounded ${currentView === 'batches' ? 'bg-teal-100 text-brand-teal' : 'text-gray-600 hover:text-gray-800'}`}
                                 >
-                                    Classes
+                                    Batches
                                 </button>
                                 {isSiteAdmin && (
                                     <a
@@ -413,10 +413,10 @@
                                             History
                                         </button>
                                         <button
-                                            onClick={() => { onViewChange('classes'); setShowMenu(false); }}
+                                            onClick={() => { onViewChange('batches'); setShowMenu(false); }}
                                             className="w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-100"
                                         >
-                                            Classes
+                                            Batches
                                         </button>
                                         {isSiteAdmin && (
                                             <a
@@ -459,7 +459,7 @@
                         .from('sessions')
                         .select(`
                             *,
-                            classes (class_name, center_id),
+                            batches (batch_name, center_id),
                             reports (report_id, student_id)
                         `);
                     if (!DEBUG_MODE) {
@@ -490,7 +490,7 @@
                         .eq('session_id', sessionId);
 
                     if (error) throw error;
-                    setSessions(sessions.filter(s => s.session_id !== sessionId));
+                    setSessions(sessions.filter(c => c.session_id !== sessionId));
                 } catch (err) {
                     setError('Failed to delete session: ' + err.message);
                 }
@@ -527,15 +527,15 @@
                             </div>
                         ) : (
                             <div className="space-y-4">
-                                {sessions.map((session) => (
-                                    <div key={session.session_id} className="bg-white rounded-lg shadow p-4">
+                                {sessions.map((cls) => (
+                                    <div key={cls.session_id} className="bg-white rounded-lg shadow p-4">
                                         <div className="flex justify-between items-start">
                                             <div>
                                                 <h3 className="font-semibold text-gray-800">
-                                                    {session.classes?.class_name || 'Unnamed Session'}
+                                                    {cls.batches?.batch_name || 'Unnamed Session'}
                                                 </h3>
                                                 <p className="text-sm text-gray-600">
-                                                    {new Date(session.session_date).toLocaleDateString('en-GB', {
+                                                    {new Date(cls.session_date).toLocaleDateString('en-GB', {
                                                         weekday: 'long',
                                                         year: 'numeric',
                                                         month: 'long',
@@ -544,28 +544,28 @@
                                                 </p>
                                                 <div className="mt-2 flex gap-2">
                                                     <span className={`px-2 py-1 text-xs rounded ${
-                                                        session.status === 'sent' ? 'bg-green-100 text-green-700' :
-                                                        session.status === 'completed' ? 'bg-teal-100 text-brand-teal' :
+                                                        cls.status === 'sent' ? 'bg-green-100 text-green-700' :
+                                                        cls.status === 'completed' ? 'bg-teal-100 text-brand-teal' :
                                                         'bg-gray-100 text-gray-700'
                                                     }`}>
-                                                        {session.status}
+                                                        {cls.status}
                                                     </span>
-                                                    {session.reports && (
+                                                    {cls.reports && (
                                                         <span className="px-2 py-1 text-xs bg-purple-100 text-purple-700 rounded">
-                                                            {session.reports.length} reports
+                                                            {cls.reports.length} reports
                                                         </span>
                                                     )}
                                                 </div>
                                             </div>
                                             <div className="flex gap-2">
                                                 <button
-                                                    onClick={() => onLoadSession(session)}
+                                                    onClick={() => onLoadSession(cls)}
                                                     className="px-3 py-1 text-sm bg-brand-teal text-white rounded hover:bg-brand-teal-dark"
                                                 >
                                                     View
                                                 </button>
                                                 <button
-                                                    onClick={() => deleteSession(session.session_id)}
+                                                    onClick={() => deleteSession(cls.session_id)}
                                                     className="px-3 py-1 text-sm text-red-600 border border-red-300 rounded hover:bg-red-50"
                                                 >
                                                     Delete
@@ -582,14 +582,14 @@
         }
 
         // =====================================================
-        // CLASS MANAGEMENT COMPONENT
+        // BATCH MANAGEMENT COMPONENT
         // =====================================================
-        function ClassManagement({ user }) {
-            const [classes, setClasses] = useState([]);
+        function BatchManagement({ user }) {
+            const [batches, setBatches] = useState([]);
             const [loading, setLoading] = useState(true);
             const [error, setError] = useState('');
             const [showAddForm, setShowAddForm] = useState(false);
-            const [newClassName, setNewClassName] = useState('');
+            const [newBatchName, setNewBatchName] = useState('');
             const [centers, setCenters] = useState([]);
             const [selectedCenter, setSelectedCenter] = useState('');
 
@@ -599,20 +599,20 @@
 
             const loadData = async () => {
                 try {
-                    // Load classes
-                    let classQuery = supabase
-                        .from('classes')
+                    // Load batches
+                    let batchQuery = supabase
+                        .from('batches')
                         .select('*, centers(center_name), students(student_id, student_name)');
                     if (!DEBUG_MODE) {
-                        classQuery = classQuery.eq('teacher_id', user.id);
+                        batchQuery = batchQuery.eq('teacher_id', user.id);
                     }
-                    const { data: classData, error: classError } = await classQuery
-                        .order('class_name');
+                    const { data: batchData, error: batchError } = await batchQuery
+                        .order('batch_name');
 
-                    if (classError) throw classError;
-                    setClasses(classData || []);
+                    if (batchError) throw batchError;
+                    setBatches(batchData || []);
 
-                    // Load centers (for adding new classes)
+                    // Load centers (for adding new batches)
                     const { data: centerData, error: centerError } = await supabase
                         .from('centers')
                         .select('*')
@@ -630,14 +630,14 @@
                 }
             };
 
-            const addClass = async () => {
-                if (!newClassName.trim() || !selectedCenter) return;
+            const addBatch = async () => {
+                if (!newBatchName.trim() || !selectedCenter) return;
 
                 try {
                     const { data, error } = await supabase
-                        .from('classes')
+                        .from('batches')
                         .insert({
-                            class_name: newClassName.trim(),
+                            batch_name: newBatchName.trim(),
                             center_id: selectedCenter,
                             teacher_id: user.id
                         })
@@ -645,11 +645,11 @@
                         .single();
 
                     if (error) throw error;
-                    setClasses([...classes, { ...data, students: [] }]);
-                    setNewClassName('');
+                    setBatches([...batches, { ...data, students: [] }]);
+                    setNewBatchName('');
                     setShowAddForm(false);
                 } catch (err) {
-                    setError('Failed to add class: ' + err.message);
+                    setError('Failed to add batch: ' + err.message);
                 }
             };
 
@@ -658,7 +658,7 @@
                     <div className="min-h-screen bg-gray-50 p-4">
                         <div className="max-w-4xl mx-auto pt-8 text-center">
                             <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-brand-teal border-t-transparent"></div>
-                            <p className="mt-2 text-gray-600">Loading classes...</p>
+                            <p className="mt-2 text-gray-600">Loading batches...</p>
                         </div>
                     </div>
                 );
@@ -669,14 +669,14 @@
                     <div className="max-w-4xl mx-auto pt-4">
                         <div className="mb-6 flex justify-between items-center">
                             <div>
-                                <h2 className="text-2xl font-bold text-gray-800 mb-2">My Classes</h2>
-                                <p className="text-gray-600">Manage your classes and students</p>
+                                <h2 className="text-2xl font-bold text-gray-800 mb-2">My Batches</h2>
+                                <p className="text-gray-600">Manage your batches and students</p>
                             </div>
                             <button
                                 onClick={() => setShowAddForm(true)}
                                 className="px-4 py-2 bg-brand-teal text-white rounded-lg hover:bg-brand-teal-dark"
                             >
-                                + Add Class
+                                + Add Batch
                             </button>
                         </div>
 
@@ -688,13 +688,13 @@
 
                         {showAddForm && (
                             <div className="bg-white rounded-lg shadow p-4 mb-6">
-                                <h3 className="font-semibold text-gray-800 mb-3">Add New Class</h3>
+                                <h3 className="font-semibold text-gray-800 mb-3">Add New Batch</h3>
                                 <div className="flex gap-3">
                                     <input
                                         type="text"
-                                        value={newClassName}
-                                        onChange={(e) => setNewClassName(e.target.value)}
-                                        placeholder="Class name"
+                                        value={newBatchName}
+                                        onChange={(e) => setNewBatchName(e.target.value)}
+                                        placeholder="Batch name"
                                         className="flex-1 px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-brand-teal"
                                     />
                                     {centers.length > 0 && (
@@ -711,7 +711,7 @@
                                         </select>
                                     )}
                                     <button
-                                        onClick={addClass}
+                                        onClick={addBatch}
                                         className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
                                     >
                                         Add
@@ -731,17 +731,17 @@
                             </div>
                         )}
 
-                        {classes.length === 0 ? (
+                        {batches.length === 0 ? (
                             <div className="bg-white rounded-lg shadow p-8 text-center">
-                                <p className="text-gray-600 mb-4">No classes yet. Add your first class to get started!</p>
+                                <p className="text-gray-600 mb-4">No batches yet. Add your first batch to get started!</p>
                             </div>
                         ) : (
                             <div className="grid gap-4 md:grid-cols-2">
-                                {classes.map((cls) => (
-                                    <div key={cls.class_id} className="bg-white rounded-lg shadow p-4">
+                                {batches.map((cls) => (
+                                    <div key={cls.batch_id} className="bg-white rounded-lg shadow p-4">
                                         <h3 className="font-semibold text-gray-800">
-                                            {cls.class_code && <span className="text-brand-teal mr-2">{cls.class_code}</span>}
-                                            {cls.class_name}
+                                            {cls.batch_code && <span className="text-brand-teal mr-2">{cls.batch_code}</span>}
+                                            {cls.batch_name}
                                         </h3>
                                         <p className="text-sm text-gray-600">{cls.centers?.center_name}</p>
                                         <div className="mt-2">
@@ -775,8 +775,8 @@
             const [reports, setReports] = useState([]);
             const [error, setError] = useState('');
             const [currentSessionId, setCurrentSessionId] = useState(initialSession?.session_id || null);
-            const [selectedClassId, setSelectedClassId] = useState(initialSession?.class_id || null);
-            const [classes, setClasses] = useState([]);
+            const [selectedBatchId, setSelectedBatchId] = useState(initialSession?.batch_id || null);
+            const [batches, setBatches] = useState([]);
             const [saveStatus, setSaveStatus] = useState('');
             const [isSavingReports, setIsSavingReports] = useState(false);
             const [colWidths, setColWidths] = useState({ name: 180, centerId: 120 });
@@ -802,9 +802,9 @@
                 document.addEventListener('mouseup', onMouseUp);
             };
 
-            // Load teacher's classes on mount
+            // Load teacher's batches on mount
             useEffect(() => {
-                loadClasses();
+                loadBatches();
             }, []);
 
             // Load existing reports if viewing a session
@@ -814,10 +814,10 @@
                 }
             }, [initialSession]);
 
-            const loadClasses = async () => {
+            const loadBatches = async () => {
                 let query = supabase
-                    .from('classes')
-                    .select('class_id, class_name, class_code, center_id')
+                    .from('batches')
+                    .select('batch_id, batch_name, batch_code, center_id')
                     .eq('is_active', true);
                 if (!DEBUG_MODE) {
                     query = query.eq('teacher_id', user.id);
@@ -825,35 +825,35 @@
                 const { data, error } = await query;
 
                 if (!error && data) {
-                    setClasses(data);
+                    setBatches(data);
                 }
             };
 
             // =====================================================
             // MATCH STUDENTS TO DATABASE
-            // Fetches DB students for the selected class, matches
+            // Fetches DB students for the selected batch, matches
             // OCR students by center_student_id or name, and stores
             // the result in matchedStudentMap for the session.
             // =====================================================
-            const matchStudentsToDb = async (classId, ocrStudents) => {
-                if (!classId || !ocrStudents || ocrStudents.length === 0) {
+            const matchStudentsToDb = async (batchId, ocrStudents) => {
+                if (!batchId || !ocrStudents || ocrStudents.length === 0) {
                     setMatchedStudentMap([]);
                     return [];
                 }
 
                 setIsMatching(true);
-                debugLog('matchStudentsToDb', { classId, studentCount: ocrStudents.length });
+                debugLog('matchStudentsToDb', { batchId, studentCount: ocrStudents.length });
 
                 try {
-                    // Get center_id for the selected class
-                    const selectedClass = classes.find(c => c.class_id === classId);
-                    const centerId = selectedClass?.center_id;
+                    // Get center_id for the selected batch
+                    const selectedBatch = batches.find(b => b.batch_id === batchId);
+                    const centerId = selectedBatch?.center_id;
 
-                    // Fetch students for the selected class (for name matching)
-                    const { data: classStudents, error: studentError } = await supabase
+                    // Fetch students for the selected batch (for name matching)
+                    const { data: batchStudents, error: studentError } = await supabase
                         .from('students')
                         .select('student_id, student_name, center_student_id, parent_id')
-                        .eq('class_id', classId);
+                        .eq('batch_id', batchId);
 
                     if (studentError) {
                         console.error('Error fetching students:', studentError);
@@ -862,23 +862,23 @@
                     // Fetch ALL students in the same center (for center_student_id matching)
                     let centerStudentData = [];
                     if (centerId) {
-                        const { data: allClassesInCenter } = await supabase
-                            .from('classes')
-                            .select('class_id')
+                        const { data: allBatchesInCenter } = await supabase
+                            .from('batches')
+                            .select('batch_id')
                             .eq('center_id', centerId);
 
-                        if (allClassesInCenter && allClassesInCenter.length > 0) {
-                            const allClassIds = allClassesInCenter.map(c => c.class_id);
+                        if (allBatchesInCenter && allBatchesInCenter.length > 0) {
+                            const allBatchIds = allBatchesInCenter.map(b => b.batch_id);
                             const { data: cStudents } = await supabase
                                 .from('students')
-                                .select('student_id, student_name, center_student_id, parent_id, class_id')
-                                .in('class_id', allClassIds);
+                                .select('student_id, student_name, center_student_id, parent_id, batch_id')
+                                .in('batch_id', allBatchIds);
                             centerStudentData = cStudents || [];
                         }
                     }
 
                     // Collect all unique parent IDs from both sets
-                    const allStudents = [...(classStudents || []), ...centerStudentData];
+                    const allStudents = [...(batchStudents || []), ...centerStudentData];
                     const parentIds = [...new Set(
                         allStudents
                             .filter(s => s.parent_id)
@@ -900,7 +900,7 @@
                     }
 
                     // Combine student data with parent info
-                    const dbStudents = (classStudents || []).map(s => ({
+                    const dbStudents = (batchStudents || []).map(s => ({
                         ...s,
                         parents: s.parent_id ? parentsMap[s.parent_id] : null
                     }));
@@ -927,7 +927,7 @@
                             if (matchById) return matchById;
                         }
 
-                        // Fallback to name matching (class-level only)
+                        // Fallback to name matching (batch-level only)
                         for (const dbStudent of dbStudents) {
                             const dbName = dbStudent.student_name?.toLowerCase().trim();
                             if (dbName === ocrName) return dbStudent;
@@ -1113,20 +1113,20 @@
             };
 
             // Save session to database
-            const saveSession = async (ocrData, imageBase64, classIdOverride) => {
+            const saveSession = async (ocrData, imageBase64, batchIdOverride) => {
                 try {
                     setSaveStatus('Saving...');
 
-                    const effectiveClassId = classIdOverride || selectedClassId;
-                    if (!effectiveClassId) {
-                        console.warn('Cannot save session without class_id');
+                    const effectiveBatchId = batchIdOverride || selectedBatchId;
+                    if (!effectiveBatchId) {
+                        console.warn('Cannot save session without batch_id');
                         setSaveStatus('');
-                        setError('Please select a class before saving.');
+                        setError('Please select a batch before saving.');
                         return null;
                     }
 
                     const sessionData = {
-                        class_id: effectiveClassId,
+                        batch_id: effectiveBatchId,
                         teacher_id: user.id,
                         session_date: new Date().toISOString().split('T')[0],
                         ocr_raw: ocrData,
@@ -1148,7 +1148,7 @@
                             .insert(sessionData)
                             .select()
                             .single();
-                        
+
                         if (error) throw error;
                         sessionId = data.session_id;
                         setCurrentSessionId(sessionId);
@@ -1234,28 +1234,28 @@
                     setActivities(extractedData.activities);
                     setStudents(extractedData.students);
 
-                    // Auto-match class from OCR-extracted classCode
-                    let autoClassId = selectedClassId;
-                    if (extractedData.classCode && classes.length > 0) {
-                        const ocrCode = extractedData.classCode.trim();
-                        const matchedClass = classes.find(c => c.class_code === ocrCode);
-                        if (matchedClass) {
-                            autoClassId = matchedClass.class_id;
-                            setSelectedClassId(autoClassId);
-                            debugLog('Auto-matched class', { ocrCode, matchedName: matchedClass.class_name, classId: autoClassId });
+                    // Auto-match batch from OCR-extracted batchCode
+                    let autoBatchId = selectedBatchId;
+                    if ((extractedData.batchCode || extractedData.classCode) && batches.length > 0) {
+                        const ocrCode = (extractedData.batchCode || extractedData.classCode).trim();
+                        const matchedBatch = batches.find(b => b.batch_code === ocrCode);
+                        if (matchedBatch) {
+                            autoBatchId = matchedBatch.batch_id;
+                            setSelectedBatchId(autoBatchId);
+                            debugLog('Auto-matched batch', { ocrCode, matchedName: matchedBatch.batch_name, batchId: autoBatchId });
                         } else {
-                            console.warn('No class match found for OCR classCode:', ocrCode);
+                            console.warn('No batch match found for OCR batchCode:', ocrCode);
                         }
                     }
 
                     setCurrentScreen('edit');
 
-                    // Auto-save to database (pass autoClassId directly to avoid React state race condition)
-                    await saveSession(extractedData, compressedImage, autoClassId);
+                    // Auto-save to database (pass autoBatchId directly to avoid React state race condition)
+                    await saveSession(extractedData, compressedImage, autoBatchId);
 
                     // Immediately match students to DB
-                    if (autoClassId) {
-                        await matchStudentsToDb(autoClassId, extractedData.students);
+                    if (autoBatchId) {
+                        await matchStudentsToDb(autoBatchId, extractedData.students);
                     }
                 } catch (err) {
                     setError(`Error: ${err.message}`);
@@ -1265,11 +1265,11 @@
                 }
             };
 
-            // Handle class change — re-match students
-            const handleClassChange = async (newClassId) => {
-                setSelectedClassId(newClassId || null);
-                if (newClassId && students.length > 0) {
-                    await matchStudentsToDb(newClassId, students);
+            // Handle batch change — re-match students
+            const handleBatchChange = async (newBatchId) => {
+                setSelectedBatchId(newBatchId || null);
+                if (newBatchId && students.length > 0) {
+                    await matchStudentsToDb(newBatchId, students);
                 } else {
                     setMatchedStudentMap([]);
                 }
@@ -1395,8 +1395,8 @@
             const generateReports = async () => {
                 setError('');
 
-                if (!selectedClassId) {
-                    setError('Please select a class before generating reports.');
+                if (!selectedBatchId) {
+                    setError('Please select a batch before generating reports.');
                     return;
                 }
 
@@ -1404,7 +1404,7 @@
 
                 debugLog('STARTING REPORT GENERATION', {
                     studentCount: students.length,
-                    classId: selectedClassId,
+                    batchId: selectedBatchId,
                     matchedCount: matchedStudentMap.filter(m => m !== null).length
                 });
 
@@ -1416,8 +1416,8 @@
 
                     // Always re-match before generating reports (user may have changed selections)
                     let currentMatches = matchedStudentMap;
-                    if (selectedClassId) {
-                        currentMatches = await matchStudentsToDb(selectedClassId, students);
+                    if (selectedBatchId) {
+                        currentMatches = await matchStudentsToDb(selectedBatchId, students);
                     }
 
                     // Track unmatched students
@@ -1700,7 +1700,7 @@
                         .from('reports')
                         .select(`
                             report_id, report_body, created_at, sent_at,
-                            sessions (session_id, session_date, classes (class_name))
+                            sessions (session_id, session_date, batches (batch_name))
                         `)
                         .eq('student_id', studentId)
                         .neq('session_id', currentSessionId)
@@ -1838,28 +1838,28 @@
                             </div>
 
                             <div className="mb-4">
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Class</label>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Batch</label>
                                 <select
-                                    value={selectedClassId || ''}
-                                    onChange={(e) => handleClassChange(e.target.value)}
+                                    value={selectedBatchId || ''}
+                                    onChange={(e) => handleBatchChange(e.target.value)}
                                     className="w-full max-w-xs px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-teal"
                                 >
-                                    <option value="">-- Select a class --</option>
-                                    {classes.map(c => (
-                                        <option key={c.class_id} value={c.class_id}>
-                                            {c.class_code ? `${c.class_code} — ${c.class_name}` : c.class_name}
+                                    <option value="">-- Select a batch --</option>
+                                    {batches.map(c => (
+                                        <option key={c.batch_id} value={c.batch_id}>
+                                            {c.batch_code ? `${c.batch_code} — ${c.batch_name}` : c.batch_name}
                                         </option>
                                     ))}
                                 </select>
-                                {!selectedClassId && (
+                                {!selectedBatchId && (
                                     <p className="mt-1 text-sm text-amber-600">
-                                        Please select a class so students can be matched to database records.
+                                        Please select a batch so students can be matched to database records.
                                     </p>
                                 )}
                                 {isMatching && (
                                     <p className="mt-1 text-sm text-brand-teal">Matching students...</p>
                                 )}
-                                {!isMatching && selectedClassId && matchedStudentMap.length > 0 && (
+                                {!isMatching && selectedBatchId && matchedStudentMap.length > 0 && (
                                     <p className="mt-1 text-sm text-green-700">
                                         {matchedStudentMap.filter(m => m !== null).length} of {students.length} students matched
                                     </p>
@@ -1930,10 +1930,10 @@
                                         {students.map((student, studentIndex) => {
                                             const matched = matchedStudentMap[studentIndex];
                                             return (
-                                            <tr key={studentIndex} className={`border-b hover:bg-gray-50 ${matched ? '' : selectedClassId ? 'bg-amber-50' : ''}`}>
-                                                <td className={`px-3 py-3 border-r border-gray-300 sticky left-0 ${matched ? 'bg-white' : selectedClassId ? 'bg-amber-50' : 'bg-white'}`}>
+                                            <tr key={studentIndex} className={`border-b hover:bg-gray-50 ${matched ? '' : selectedBatchId ? 'bg-amber-50' : ''}`}>
+                                                <td className={`px-3 py-3 border-r border-gray-300 sticky left-0 ${matched ? 'bg-white' : selectedBatchId ? 'bg-amber-50' : 'bg-white'}`}>
                                                     <div className="flex items-center gap-1">
-                                                        {selectedClassId && matchedStudentMap.length > 0 && (
+                                                        {selectedBatchId && matchedStudentMap.length > 0 && (
                                                             <span title={matched ? `Matched: ${matched.student_name}` : 'Not found in database'} className="flex-shrink-0">
                                                                 {matched
                                                                     ? <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"/></svg>
@@ -1944,7 +1944,7 @@
                                                         <span className="w-full px-2 py-1 text-gray-800">{student.name || '—'}</span>
                                                     </div>
                                                 </td>
-                                                <td className={`px-3 py-3 border-r border-gray-300 ${matched ? 'bg-white' : selectedClassId ? 'bg-amber-50' : 'bg-white'}`}>
+                                                <td className={`px-3 py-3 border-r border-gray-300 ${matched ? 'bg-white' : selectedBatchId ? 'bg-amber-50' : 'bg-white'}`}>
                                                     <select
                                                         value={student.center_student_id || ''}
                                                         onChange={(e) => updateStudentCenterId(studentIndex, e.target.value)}
@@ -2006,8 +2006,8 @@
                                 </button>
                                 <button
                                     onClick={async () => {
-                                        if (!selectedClassId) {
-                                            setError('Please select a class before saving.');
+                                        if (!selectedBatchId) {
+                                            setError('Please select a batch before saving.');
                                             return;
                                         }
                                         await saveSession({ activities, students }, uploadedImage);
@@ -2050,7 +2050,7 @@
                                 </button>
                                 <button
                                     onClick={generateReports}
-                                    disabled={isProcessing || !selectedClassId || students.length === 0 || students.some(s => !s.name.trim()) || (matchedStudentMap.length > 0 && matchedStudentMap.some(m => m === null))}
+                                    disabled={isProcessing || !selectedBatchId || students.length === 0 || students.some(s => !s.name.trim()) || (matchedStudentMap.length > 0 && matchedStudentMap.some(m => m === null))}
                                     className="ml-auto px-8 py-3 bg-brand-teal text-white rounded-lg font-medium hover:bg-brand-teal-dark disabled:bg-gray-400 disabled:cursor-not-allowed transition"
                                     title={matchedStudentMap.length > 0 && matchedStudentMap.some(m => m === null) ? 'All students must be matched before generating reports' : ''}
                                 >
@@ -2058,7 +2058,7 @@
                                 </button>
                             </div>
 
-                            {!isProcessing && selectedClassId && matchedStudentMap.length > 0 && matchedStudentMap.some(m => m === null) && (
+                            {!isProcessing && selectedBatchId && matchedStudentMap.length > 0 && matchedStudentMap.some(m => m === null) && (
                                 <p className="mt-3 text-sm text-amber-700 bg-amber-50 border border-amber-200 px-4 py-2 rounded-lg">
                                     All students must be matched to database records before generating reports. Use the Center Student ID dropdown to match unmatched students, or use + Add Student and pick them from the dropdown.
                                 </p>
@@ -2189,9 +2189,9 @@
                                                                     <span className="font-medium text-gray-700">
                                                                         {new Date(hist.sessions?.session_date || hist.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
                                                                     </span>
-                                                                    {hist.sessions?.classes?.class_name && (
+                                                                    {hist.sessions?.batches?.batch_name && (
                                                                         <span className="text-xs bg-teal-50 text-brand-teal px-2 py-0.5 rounded">
-                                                                            {hist.sessions.classes.class_name}
+                                                                            {hist.sessions.batches.batch_name}
                                                                         </span>
                                                                     )}
                                                                     {hist.sent_at && (
@@ -2446,8 +2446,8 @@
                 setCurrentView('scanner');
             };
 
-            const handleLoadSession = (session) => {
-                setSelectedSession(session);
+            const handleLoadSession = (cls) => {
+                setSelectedSession(cls);
                 setCurrentView('scanner');
             };
 
@@ -2492,21 +2492,21 @@
                     />
 
                     {currentView === 'scanner' && (
-                        <Scanner 
-                            user={user} 
+                        <Scanner
+                            user={user}
                             initialSession={selectedSession}
                         />
                     )}
 
                     {currentView === 'history' && (
-                        <SessionHistory 
+                        <SessionHistory
                             user={user}
                             onLoadSession={handleLoadSession}
                         />
                     )}
 
-                    {currentView === 'classes' && (
-                        <ClassManagement user={user} />
+                    {currentView === 'batches' && (
+                        <BatchManagement user={user} />
                     )}
                     
                     <DebugPanel />

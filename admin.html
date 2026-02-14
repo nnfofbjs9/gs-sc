@@ -461,7 +461,7 @@
                                     <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Activity</th>
                                     <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Learning Area</th>
                                     <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700">Level</th>
-                                    <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700">Session</th>
+                                    <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700">Session #</th>
                                     <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Description</th>
                                     <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700">Actions</th>
                                 </tr>
@@ -917,7 +917,7 @@
         function StudentManagement({ user, teacher }) {
             const [students, setStudents] = useState([]);
             const [parents, setParents] = useState([]);
-            const [classes, setClasses] = useState([]);
+            const [batches, setBatches] = useState([]);
             const [centers, setCenters] = useState([]);
             const [selectedCenterId, setSelectedCenterId] = useState('');
             const [loading, setLoading] = useState(true);
@@ -939,7 +939,7 @@
             const [studentForm, setStudentForm] = useState({
                 student_name: '',
                 date_of_birth: '',
-                class_id: '',
+                batch_id: '',
                 notes: ''
             });
 
@@ -955,19 +955,19 @@
                 try {
                     const isSiteAdmin = teacher?.role === 'site_admin';
 
-                    const [studentsRes, parentsRes, classesRes] = await Promise.all([
-                        supabase.from('students').select('*, parents(parent_name, email, phone), classes(class_name, class_code)').order('student_name'),
+                    const [studentsRes, parentsRes, batchesRes] = await Promise.all([
+                        supabase.from('students').select('*, parents(parent_name, email, phone), batches(batch_name, batch_code)').order('student_name'),
                         supabase.from('parents').select('*').order('parent_name'),
-                        supabase.from('classes').select('*, centers(center_name)').eq('is_active', true).order('class_name')
+                        supabase.from('batches').select('*, centers(center_name)').eq('is_active', true).order('batch_name')
                     ]);
 
                     if (studentsRes.error) throw studentsRes.error;
                     if (parentsRes.error) throw parentsRes.error;
-                    if (classesRes.error) throw classesRes.error;
+                    if (batchesRes.error) throw batchesRes.error;
 
                     setStudents(studentsRes.data || []);
                     setParents(parentsRes.data || []);
-                    setClasses(classesRes.data || []);
+                    setBatches(batchesRes.data || []);
 
                     // Load centers: site_admin sees all, others see only their assigned centers
                     let centersData = [];
@@ -995,12 +995,12 @@
                     const autoCenter = centersData.length === 1 ? centersData[0].center_id : '';
                     setSelectedCenterId(autoCenter);
 
-                    // Set default class based on auto-selected center
-                    const filteredClasses = autoCenter
-                        ? (classesRes.data || []).filter(c => c.center_id === autoCenter)
-                        : classesRes.data || [];
-                    if (filteredClasses.length > 0) {
-                        setStudentForm(prev => ({ ...prev, class_id: filteredClasses[0].class_id }));
+                    // Set default batch based on auto-selected center
+                    const filteredBatches = autoCenter
+                        ? (batchesRes.data || []).filter(b => b.center_id === autoCenter)
+                        : batchesRes.data || [];
+                    if (filteredBatches.length > 0) {
+                        setStudentForm(prev => ({ ...prev, batch_id: filteredBatches[0].batch_id }));
                     }
                 } catch (err) {
                     setError('Failed to load data: ' + err.message);
@@ -1058,10 +1058,10 @@
                             student_name: cleanStudentName,
                             date_of_birth: studentForm.date_of_birth,
                             parent_id: parentId,
-                            class_id: studentForm.class_id,
+                            batch_id: studentForm.batch_id,
                             notes: cleanNotes || null
                         })
-                        .select('*, parents(parent_name, email, phone), classes(class_name, class_code)')
+                        .select('*, parents(parent_name, email, phone), batches(batch_name, batch_code)')
                         .single();
 
                     if (studentError) throw studentError;
@@ -1084,8 +1084,8 @@
                 setParentForm({ parent_name: '', email: '', phone: '', relationship_type: 'parent', preferred_contact: 'email' });
                 const defaultCenter = centers.length === 1 ? centers[0].center_id : '';
                 setSelectedCenterId(defaultCenter);
-                const filtered = defaultCenter ? classes.filter(c => c.center_id === defaultCenter) : classes;
-                setStudentForm({ student_name: '', date_of_birth: '', class_id: filtered[0]?.class_id || '', notes: '' });
+                const filtered = defaultCenter ? batches.filter(b => b.center_id === defaultCenter) : batches;
+                setStudentForm({ student_name: '', date_of_birth: '', batch_id: filtered[0]?.batch_id || '', notes: '' });
                 setParentMode('new');
                 setSelectedParentId('');
             };
@@ -1095,7 +1095,7 @@
                 setEditForm({
                     student_name: student.student_name,
                     date_of_birth: student.date_of_birth || '',
-                    class_id: student.class_id,
+                    batch_id: student.batch_id,
                     center_student_id: student.center_student_id || '',
                     notes: student.notes || '',
                     is_active: student.is_active
@@ -1115,7 +1115,7 @@
                         .update({
                             student_name: cleanName,
                             date_of_birth: editForm.date_of_birth || null,
-                            class_id: editForm.class_id,
+                            batch_id: editForm.batch_id,
                             center_student_id: cleanCenterStudentId || null,
                             notes: cleanNotes || null,
                             is_active: editForm.is_active
@@ -1306,8 +1306,8 @@
                                                 onChange={(e) => {
                                                     const cid = e.target.value;
                                                     setSelectedCenterId(cid);
-                                                    const filtered = cid ? classes.filter(c => c.center_id === cid) : classes;
-                                                    setStudentForm(prev => ({ ...prev, class_id: filtered[0]?.class_id || '' }));
+                                                    const filtered = cid ? batches.filter(b => b.center_id === cid) : batches;
+                                                    setStudentForm(prev => ({ ...prev, batch_id: filtered[0]?.batch_id || '' }));
                                                 }}
                                                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" required>
                                                 {centers.length !== 1 && <option value="">-- Select Center --</option>}
@@ -1317,14 +1317,14 @@
                                             </select>
                                         </div>
                                         <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">Class *</label>
-                                            <select value={studentForm.class_id}
-                                                onChange={(e) => setStudentForm({ ...studentForm, class_id: e.target.value })}
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">Batch *</label>
+                                            <select value={studentForm.batch_id}
+                                                onChange={(e) => setStudentForm({ ...studentForm, batch_id: e.target.value })}
                                                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" required>
                                                 {!selectedCenterId && <option value="">-- Select a center first --</option>}
-                                                {(selectedCenterId ? classes.filter(c => c.center_id === selectedCenterId) : classes).map(c => (
-                                                    <option key={c.class_id} value={c.class_id}>
-                                                        {c.class_name} {c.class_code ? `[${c.class_code}]` : ''}
+                                                {(selectedCenterId ? batches.filter(b => b.center_id === selectedCenterId) : batches).map(c => (
+                                                    <option key={c.batch_id} value={c.batch_id}>
+                                                        {c.batch_name} {c.batch_code ? `[${c.batch_code}]` : ''}
                                                     </option>
                                                 ))}
                                             </select>
@@ -1360,7 +1360,7 @@
                                 <tr>
                                     <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Student</th>
                                     <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Parent</th>
-                                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Class</th>
+                                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Batch</th>
                                     <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700">Status</th>
                                     <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700">Actions</th>
                                 </tr>
@@ -1379,11 +1379,11 @@
                                                     {student.parents?.parent_name || '-'}
                                                 </td>
                                                 <td className="px-4 py-3">
-                                                    <select value={editForm.class_id}
-                                                        onChange={(e) => setEditForm({ ...editForm, class_id: e.target.value })}
+                                                    <select value={editForm.batch_id}
+                                                        onChange={(e) => setEditForm({ ...editForm, batch_id: e.target.value })}
                                                         className="w-full px-2 py-1 border border-gray-300 rounded text-sm">
-                                                        {classes.map(c => (
-                                                            <option key={c.class_id} value={c.class_id}>{c.class_name}</option>
+                                                        {batches.map(c => (
+                                                            <option key={c.batch_id} value={c.batch_id}>{c.batch_name}</option>
                                                         ))}
                                                     </select>
                                                 </td>
@@ -1415,8 +1415,8 @@
                                                     {student.parents?.phone && <div className="text-xs text-gray-500">{student.parents.phone}</div>}
                                                 </td>
                                                 <td className="px-4 py-3 text-sm text-gray-600">
-                                                    {student.classes?.class_name || '-'}
-                                                    {student.classes?.class_code && <span className="text-xs text-gray-400 ml-1">[{student.classes.class_code}]</span>}
+                                                    {student.batches?.batch_name || '-'}
+                                                    {student.batches?.batch_code && <span className="text-xs text-gray-400 ml-1">[{student.batches.batch_code}]</span>}
                                                 </td>
                                                 <td className="px-4 py-3 text-center">
                                                     <span className={`px-2 py-1 text-xs rounded ${student.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}`}>
