@@ -44,21 +44,20 @@ const corsHeaders = {
  */
 async function getActivitiesWithSequence(level: number, classNumber: number) {
   const { data, error } = await supabaseClient
-    .from('class_activities')
+    .from('activities')
     .select(`
+      activity_id,
+      activity_name,
+      description,
       sequence_in_class,
       class_number,
-      activities:activity_id (
-        activity_id,
-        activity_name,
-        description,
-        learning_areas:learning_area_id (
-          learning_area_name
-        )
+      level,
+      learning_areas:learning_area_id (
+        learning_area_name
       )
     `)
+    .eq('level', level)
     .eq('class_number', classNumber)
-    .eq('activities.level', level)
     .not('sequence_in_class', 'is', null)
     .order('sequence_in_class', { ascending: true });
 
@@ -118,10 +117,10 @@ function mapActivitiesWithWarnings(
     const ocrName = ocrActivities[i];
     const dbActivity = dbActivitiesWithSequence[i];
 
-    if (dbActivity && dbActivity.activities) {
-      const dbName = dbActivity.activities.activity_name;
-      const description = dbActivity.activities.description;
-      const learningArea = dbActivity.activities.learning_areas?.learning_area_name;
+    if (dbActivity) {
+      const dbName = dbActivity.activity_name;
+      const description = dbActivity.description;
+      const learningArea = dbActivity.learning_areas?.learning_area_name;
 
       // Check for mismatch
       const warning = dbName.toLowerCase() !== ocrName.toLowerCase()
