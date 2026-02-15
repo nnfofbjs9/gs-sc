@@ -1071,10 +1071,21 @@
             // Process image with EXIF orientation handling and smart compression
             const processImageWithOrientation = async (file) => {
                 return new Promise(async (resolve, reject) => {
+                    let timeoutId;
+
                     try {
+                        console.log('[ProcessImage] Starting...', { name: file.name, size: file.size, type: file.type });
+
+                        // Set a timeout for the entire operation
+                        timeoutId = setTimeout(() => {
+                            console.error('[ProcessImage] TIMEOUT after 30 seconds');
+                            reject(new Error('Image processing timed out. Please try a smaller or simpler image.'));
+                        }, 30000); // 30 second timeout
+
                         // Validate file size upfront (20MB limit per OpenAI)
                         const maxFileSize = 20 * 1024 * 1024; // 20MB
                         if (file.size > maxFileSize) {
+                            clearTimeout(timeoutId);
                             reject(new Error('Image file too large (max 20MB). Please use a smaller image.'));
                             return;
                         }
@@ -1088,7 +1099,7 @@
 
                         if (isHeic) {
                             try {
-                                console.log('Converting HEIC image to JPEG...');
+                                console.log('[ProcessImage] Converting HEIC to JPEG...');
                                 const jpegBlob = await heic2any({
                                     blob: file,
                                     toType: 'image/jpeg',
@@ -1101,9 +1112,10 @@
                                     file.name.replace(/\.heic$/i, '.jpg').replace(/\.heif$/i, '.jpg'),
                                     { type: 'image/jpeg' }
                                 );
-                                console.log('HEIC conversion successful');
+                                console.log('[ProcessImage] HEIC conversion successful');
                             } catch (heicError) {
-                                console.error('HEIC conversion failed:', heicError);
+                                clearTimeout(timeoutId);
+                                console.error('[ProcessImage] HEIC conversion failed:', heicError);
                                 reject(new Error('Failed to convert HEIC image. Please try taking a photo in JPEG format.'));
                                 return;
                             }
@@ -1127,33 +1139,65 @@
                             quality = 0.65;
                         }
 
-                        console.log(`Processing ${sizeMB.toFixed(2)}MB image with maxDim=${maxDim}, quality=${quality}`);
+                        console.log(`[ProcessImage] Size: ${sizeMB.toFixed(2)}MB, maxDim: ${maxDim}, quality: ${quality}`);
+
+                        // Check if loadImage library is available
+                        if (typeof loadImage === 'undefined') {
+                            clearTimeout(timeoutId);
+                            console.error('[ProcessImage] loadImage library NOT FOUND!');
+                            reject(new Error('Image processing library not loaded. Please refresh the page.'));
+                            return;
+                        }
+
+                        console.log('[ProcessImage] Calling loadImage library...');
 
                         // Step 3: Load image with EXIF orientation handling using blueimp-load-image
                         loadImage(
                             processFile,
                             (canvasOrImg) => {
+                                console.log('[ProcessImage] loadImage callback triggered', {
+                                    type: canvasOrImg.type,
+                                    isCanvas: canvasOrImg instanceof HTMLCanvasElement,
+                                    width: canvasOrImg.width,
+                                    height: canvasOrImg.height
+                                });
+
                                 // Check for loading errors
                                 if (canvasOrImg.type === 'error') {
+                                    clearTimeout(timeoutId);
+                                    console.error('[ProcessImage] loadImage returned error type');
                                     reject(new Error('Failed to load image. Please try a different photo.'));
                                     return;
                                 }
 
+                                // Verify we got a canvas
+                                if (!(canvasOrImg instanceof HTMLCanvasElement)) {
+                                    clearTimeout(timeoutId);
+                                    console.error('[ProcessImage] Expected canvas, got:', typeof canvasOrImg, canvasOrImg);
+                                    reject(new Error('Image processing failed - invalid canvas object.'));
+                                    return;
+                                }
+
                                 try {
+                                    console.log('[ProcessImage] Converting canvas to data URL...');
                                     // Step 4: Convert canvas to data URL with compression
                                     const dataUrl = canvasOrImg.toDataURL('image/jpeg', quality);
 
                                     if (!dataUrl || dataUrl === 'data:,') {
+                                        clearTimeout(timeoutId);
+                                        console.error('[ProcessImage] toDataURL returned empty/invalid result');
                                         reject(new Error('Image compression failed. Please try a different photo.'));
                                         return;
                                     }
 
-                                    const compressedSizeKB = Math.round((dataUrl.length * 0.75) / 1024); // Approximate size
-                                    console.log(`Image processed successfully. Compressed size: ~${compressedSizeKB}KB`);
+                                    const compressedSizeKB = Math.round((dataUrl.length * 0.75) / 1024);
+                                    console.log(`[ProcessImage] ✓ SUCCESS! Compressed size: ~${compressedSizeKB}KB`);
 
+                                    clearTimeout(timeoutId);
                                     resolve(dataUrl);
                                 } catch (canvasError) {
-                                    console.error('Canvas toDataURL failed:', canvasError);
+                                    clearTimeout(timeoutId);
+                                    console.error('[ProcessImage] Canvas toDataURL failed:', canvasError);
                                     reject(new Error('Image compression failed. Your device may be low on memory.'));
                                 }
                             },
@@ -1165,7 +1209,8 @@
                             }
                         );
                     } catch (err) {
-                        console.error('Image processing error:', err);
+                        if (timeoutId) clearTimeout(timeoutId);
+                        console.error('[ProcessImage] Unexpected error:', err);
                         reject(new Error(`Image processing failed: ${err.message}`));
                     }
                 });
@@ -1292,6 +1337,15 @@
                         throw new Error('No student data found in the image. Please ensure the gradesheet is clearly visible.');
                     }
 
+                    // DEBUG: Log OCR extraction results
+                    console.log('[OCR] Extracted data:', {
+                        batchCode: extractedData.batchCode,
+                        level: extractedData.level,
+                        classNumber: extractedData.classNumber,
+                        studentCount: extractedData.students.length,
+                        firstStudent: extractedData.students[0]
+                    });
+
                     setActivities(extractedData.activities);
                     setStudents(extractedData.students);
 
@@ -1305,14 +1359,19 @@
                     let autoBatchId = selectedBatchId;
                     if ((extractedData.batchCode || extractedData.classCode) && batches.length > 0) {
                         const ocrCode = (extractedData.batchCode || extractedData.classCode).trim();
+                        console.log('[Batch] Searching for batch code:', ocrCode, 'in', batches.length, 'batches');
                         const matchedBatch = batches.find(b => b.batch_code === ocrCode);
                         if (matchedBatch) {
                             autoBatchId = matchedBatch.batch_id;
                             setSelectedBatchId(autoBatchId);
+                            console.log('[Batch] ✓ Auto-matched batch:', matchedBatch.batch_name, 'ID:', autoBatchId);
                             debugLog('Auto-matched batch', { ocrCode, matchedName: matchedBatch.batch_name, batchId: autoBatchId });
                         } else {
-                            console.warn('No batch match found for OCR batchCode:', ocrCode);
+                            console.warn('[Batch] ✗ No batch match found for OCR batchCode:', ocrCode);
+                            console.log('[Batch] Available batch codes:', batches.map(b => b.batch_code));
                         }
+                    } else {
+                        console.warn('[Batch] ✗ No batchCode extracted from OCR or no batches loaded');
                     }
 
                     setCurrentScreen('edit');
