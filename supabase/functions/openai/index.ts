@@ -199,7 +199,6 @@ grades array must match activities array order.`,
             },
           ],
           max_completion_tokens: 4000,
-          temperature: 0.1,
         }),
       });
 
