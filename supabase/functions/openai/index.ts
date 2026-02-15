@@ -174,44 +174,32 @@ serve(async (req) => {
               content: [
                 {
                   type: "text",
-                  text: `Extract all data from this gradesheet image. Look carefully for:
-1. center_student_id (a 4-digit number, usually in the first column or next to names)
+                  text: `Extract gradesheet data. Return ONLY valid JSON in this EXACT format:
+{"classNumber":"1","level":"1","batchCode":"001","activities":["Activity 1","Activity 2"],"students":[{"center_student_id":"0001","name":"Student Name","grades":["A","B"]}]}
+
+Extract:
+1. center_student_id: 4-digit number (e.g. "0001"), null if not visible
 2. Student names
-3. Activity/assessment names (usually column headers)
-4. Grades for each student per activity
-5. Batch code: a short numeric code (e.g. "001", "002") printed on the topsheet, usually near the top
-6. Class number visible on the top left of the sheet (represents curriculum progression 1-36 within a level)
-7. Level number (1-5) if visible on the sheet
+3. Activity names (column headers)
+4. Grades: "A"=Excellent, "B"=Good, "C"=Needs Practice, "X"=Absent, ""=unclear
+5. batchCode: numeric code (e.g. "001")
+6. classNumber: 1-36 (top left of sheet)
+7. level: 1-5
 
-Return ONLY a valid JSON object in this EXACT format:
-{
-  "classNumber": "1" or null,
-  "level": "1" or null,
-  "batchCode": "001" or null,
-  "activities": ["Activity 1", "Activity 2", ...],
-  "students": [
-    {"center_student_id": "0001", "name": "Student Name", "grades": ["A", "B", ...]},
-    {"center_student_id": "0002", "name": "Another Student", "grades": ["B", "A", ...]}
-  ]
-}
-
-IMPORTANT:
-- center_student_id should contain the student ID (a 4-digit number like "0001", "0042"). Extract it if visible.
-- If student ID is not visible for a student, use null
-- grades array must match activities array in order
-- Use "A" for Excellent, "B" for Good, "C" for Needs Practice, "X" for Absent
-- If a grade is unclear, use empty string ""`,
+grades array must match activities array order.`,
                 },
                 {
                   type: "image_url",
                   image_url: {
                     url: `data:image/jpeg;base64,${data.image}`,
+                    detail: "high"
                   },
                 },
               ],
             },
           ],
-          max_completion_tokens: 10000,
+          max_completion_tokens: 4000,
+          temperature: 0.1,
         }),
       });
 

@@ -1066,56 +1066,100 @@
             // Compress image before upload
             const compressImage = (file) => {
                 return new Promise((resolve, reject) => {
+                    // Validate file type and size upfront
+                    const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+                    if (!validTypes.includes(file.type)) {
+                        // Mobile may send HEIC as 'image/heic' or empty string
+                        if (file.type === 'image/heic' || file.type === 'image/heif') {
+                            reject(new Error('HEIC format not supported. Please change your camera settings to JPEG or use "Most Compatible" format.'));
+                            return;
+                        }
+                    }
+
+                    const maxFileSize = 10 * 1024 * 1024; // 10MB
+                    if (file.size > maxFileSize) {
+                        reject(new Error('Image file too large (max 10MB). Please use a smaller image.'));
+                        return;
+                    }
+
                     const reader = new FileReader();
-                    reader.onerror = () => reject(new Error('Failed to read image file'));
+                    reader.onerror = () => reject(new Error('Failed to read image file. Please try a different photo.'));
+
                     reader.onload = (e) => {
                         const img = new Image();
-                        img.onerror = () => reject(new Error('Failed to load image'));
+
+                        // Add timeout for image loading
+                        const timeout = setTimeout(() => {
+                            reject(new Error('Image loading timed out. Please try a smaller photo or check your connection.'));
+                        }, 15000); // 15 second timeout
+
+                        img.onerror = () => {
+                            clearTimeout(timeout);
+                            reject(new Error('Failed to load image. This may be an unsupported format (like HEIC). Try converting to JPEG first.'));
+                        };
+
                         img.onload = () => {
+                            clearTimeout(timeout);
                             try {
                                 const canvas = document.createElement('canvas');
                                 let width = img.width;
                                 let height = img.height;
-                                
-                                const maxDim = 1024;
+
+                                // Optimized: Use 800px max for faster processing (OCR doesn't need 1024px)
+                                const maxDim = 800;
                                 if (width > maxDim || height > maxDim) {
                                     if (width > height) {
-                                        height = (height / width) * maxDim;
+                                        height = Math.round((height / width) * maxDim);
                                         width = maxDim;
                                     } else {
-                                        width = (width / height) * maxDim;
+                                        width = Math.round((width / height) * maxDim);
                                         height = maxDim;
                                     }
                                 }
-                                
+
                                 canvas.width = width;
                                 canvas.height = height;
-                                const ctx = canvas.getContext('2d');
-                                
+                                const ctx = canvas.getContext('2d', { willReadFrequently: false });
+
+                                if (!ctx) {
+                                    reject(new Error('Canvas context creation failed. Your device may be low on memory.'));
+                                    return;
+                                }
+
                                 // Set white background for JPEG
                                 ctx.fillStyle = '#FFFFFF';
                                 ctx.fillRect(0, 0, width, height);
-                                
+
+                                // Handle image orientation from EXIF (mobile photos)
                                 ctx.drawImage(img, 0, 0, width, height);
-                                
+
                                 // Try to get base64, with fallback
                                 try {
-                                    const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+                                    // Reduced quality to 0.75 for faster processing and smaller payload
+                                    const dataUrl = canvas.toDataURL('image/jpeg', 0.75);
                                     if (!dataUrl || dataUrl === 'data:,') {
                                         throw new Error('Canvas conversion failed');
                                     }
+
+                                    // Clean up
+                                    canvas.width = 0;
+                                    canvas.height = 0;
+
                                     resolve(dataUrl);
                                 } catch (canvasError) {
                                     console.error('Canvas toDataURL failed:', canvasError);
-                                    // Fallback: just use original file as base64
-                                    resolve(e.target.result);
+                                    reject(new Error('Image compression failed. Your device may be low on memory. Try a smaller photo.'));
                                 }
                             } catch (err) {
-                                reject(err);
+                                reject(new Error('Image processing error: ' + err.message));
                             }
                         };
+
+                        // Set crossOrigin before src for better compatibility
+                        img.crossOrigin = 'anonymous';
                         img.src = e.target.result;
                     };
+
                     reader.readAsDataURL(file);
                 });
             };
@@ -1793,6 +1837,12 @@
                                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
                                     <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
                                         <h3 className="text-xl font-bold text-gray-800 mb-4">Choose Image Source</h3>
+
+                                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                                            <p className="text-sm text-blue-800 font-medium mb-1">📱 iPhone users:</p>
+                                            <p className="text-xs text-blue-700">Use JPEG format in Settings → Camera → Formats → "Most Compatible" to avoid upload errors</p>
+                                        </div>
+
                                         <div className="space-y-3">
                                             <label className="flex items-center justify-center w-full p-4 border-2 border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition">
                                                 <svg className="w-6 h-6 mr-3 text-brand-teal" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1802,7 +1852,7 @@
                                                 <span className="font-medium text-gray-700">Take Photo</span>
                                                 <input
                                                     type="file"
-                                                    accept="image/*"
+                                                    accept="image/jpeg,image/jpg,image/png,image/webp"
                                                     capture="environment"
                                                     onChange={(e) => {
                                                         setShowUploadOptions(false);
@@ -1811,7 +1861,7 @@
                                                     className="hidden"
                                                 />
                                             </label>
-                                            
+
                                             <label className="flex items-center justify-center w-full p-4 border-2 border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition">
                                                 <svg className="w-6 h-6 mr-3 text-brand-teal" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -1819,7 +1869,7 @@
                                                 <span className="font-medium text-gray-700">Upload from Gallery</span>
                                                 <input
                                                     type="file"
-                                                    accept="image/*"
+                                                    accept="image/jpeg,image/jpg,image/png,image/webp"
                                                     onChange={(e) => {
                                                         setShowUploadOptions(false);
                                                         handleImageUpload(e);
@@ -1828,7 +1878,7 @@
                                                 />
                                             </label>
                                         </div>
-                                        
+
                                         <button
                                             onClick={() => setShowUploadOptions(false)}
                                             className="mt-4 w-full px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
