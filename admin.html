@@ -4,6 +4,17 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin - Gradesheet Scanner</title>
+    <style>
+        @media print {
+            /* Hide browser headers and footers */
+            @page {
+                margin: 0;
+            }
+            html {
+                margin: 0;
+            }
+        }
+    </style>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -1709,44 +1720,42 @@
                     {sheetGenerated && (
                         <div className="print-sheet bg-white p-8">
                             {/* Header Row */}
-                            <div className="header-row mb-4" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr', gap: '0', border: '2px solid black' }}>
-                                <div style={{ border: '1px solid black', padding: '4px', textAlign: 'center', fontWeight: 'bold' }}>
+                            <div className="header-row mb-4" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1.5fr', gap: '0', border: '2px solid black' }}>
+                                <div style={{ border: '1px solid black', padding: '6px', textAlign: 'center', fontWeight: 'bold', fontSize: '11pt' }}>
                                     <input
                                         type="text"
                                         value={version}
                                         onChange={(e) => setVersion(e.target.value)}
                                         className="no-print-border w-full text-center font-bold"
-                                        style={{ border: 'none', background: 'transparent' }}
+                                        style={{ border: 'none', background: 'transparent', fontWeight: 'bold', fontSize: '11pt' }}
                                     />
                                 </div>
-                                <div style={{ border: '1px solid black', padding: '4px', textAlign: 'center', fontWeight: 'bold' }}>
+                                <div style={{ border: '1px solid black', padding: '6px', textAlign: 'center', fontWeight: 'bold', fontSize: '11pt' }}>
                                     Level: <input
                                         type="text"
                                         value={editableLevel}
                                         onChange={(e) => setEditableLevel(e.target.value)}
                                         className="no-print-border"
-                                        style={{ border: 'none', background: 'transparent', width: '30px', textAlign: 'center', fontWeight: 'bold' }}
+                                        style={{ border: 'none', background: 'transparent', width: '30px', textAlign: 'center', fontWeight: 'bold', fontSize: '11pt' }}
                                     />
                                 </div>
-                                <div style={{ border: '1px solid black', padding: '4px', textAlign: 'center', fontWeight: 'bold' }}>
+                                <div style={{ border: '1px solid black', padding: '6px', textAlign: 'center', fontWeight: 'bold', fontSize: '11pt' }}>
                                     Class: <input
                                         type="text"
                                         value={editableClass}
                                         onChange={(e) => setEditableClass(e.target.value)}
                                         className="no-print-border"
-                                        style={{ border: 'none', background: 'transparent', width: '40px', textAlign: 'center', fontWeight: 'bold' }}
+                                        style={{ border: 'none', background: 'transparent', width: '40px', textAlign: 'center', fontWeight: 'bold', fontSize: '11pt' }}
                                     />
                                 </div>
-                                <div style={{ border: '1px solid black', padding: '4px', textAlign: 'center', fontWeight: 'bold' }}>
+                                <div style={{ border: '1px solid black', padding: '6px', textAlign: 'center', fontWeight: 'bold', fontSize: '11pt' }}>
                                     Batch Code: <input
                                         type="text"
                                         value={editableBatch}
                                         onChange={(e) => setEditableBatch(e.target.value)}
                                         className="no-print-border"
-                                        style={{ border: 'none', background: 'transparent', width: '40px', textAlign: 'center', fontWeight: 'bold' }}
+                                        style={{ border: 'none', background: 'transparent', width: '60px', textAlign: 'center', fontWeight: 'bold', fontSize: '11pt' }}
                                     />
-                                </div>
-                                <div style={{ border: '1px solid black', padding: '4px', textAlign: 'center', fontWeight: 'bold' }}>
                                 </div>
                             </div>
 
@@ -1756,19 +1765,25 @@
                             <table className="gradesheet-table mb-6">
                                 <thead>
                                     <tr>
-                                        <th style={{ width: '50px' }}>ID</th>
-                                        <th style={{ width: '150px' }}>Student Name</th>
+                                        <th style={{ width: '45px' }}>ID</th>
+                                        <th style={{ width: '140px' }}>Student Name</th>
                                         {topActivities.map((activity, idx) => (
-                                            <th key={activity.activity_id} style={{ width: '80px', minWidth: '80px' }}>
-                                                <div style={{ fontSize: '8pt', lineHeight: '1.1', wordWrap: 'break-word', whiteSpace: 'normal' }}>
-                                                    <input
-                                                        type="text"
-                                                        value={activity.activity_name}
-                                                        onChange={(e) => handleActivityNameEdit(activity.activity_id, e.target.value)}
-                                                        className="no-print-border w-full text-center"
-                                                        style={{ border: 'none', background: 'transparent', fontSize: '8pt', lineHeight: '1.1' }}
-                                                    />
-                                                </div>
+                                            <th key={activity.activity_id} style={{ width: '90px', minWidth: '90px', maxWidth: '90px' }}>
+                                                <textarea
+                                                    value={activity.activity_name}
+                                                    onChange={(e) => handleActivityNameEdit(activity.activity_id, e.target.value)}
+                                                    className="no-print-border w-full text-center"
+                                                    rows="2"
+                                                    style={{
+                                                        border: 'none',
+                                                        background: 'transparent',
+                                                        fontSize: '9pt',
+                                                        lineHeight: '1.2',
+                                                        resize: 'none',
+                                                        overflow: 'hidden',
+                                                        fontWeight: '600'
+                                                    }}
+                                                />
                                             </th>
                                         ))}
                                     </tr>
@@ -1776,14 +1791,14 @@
                                 <tbody>
                                     {students.map((student) => (
                                         <tr key={student.student_id}>
-                                            <td className="text-center" style={{ fontSize: '9pt' }}>{student.center_student_id}</td>
-                                            <td style={{ fontSize: '9pt', wordWrap: 'break-word', whiteSpace: 'normal' }}>
+                                            <td className="text-center" style={{ fontSize: '10pt', fontWeight: 'bold' }}>{student.center_student_id}</td>
+                                            <td style={{ fontSize: '10pt', fontWeight: '600' }}>
                                                 <input
                                                     type="text"
                                                     value={student.student_name}
                                                     onChange={(e) => handleStudentNameEdit(student.student_id, e.target.value)}
                                                     className="no-print-border w-full"
-                                                    style={{ border: 'none', background: 'transparent', fontSize: '9pt' }}
+                                                    style={{ border: 'none', background: 'transparent', fontSize: '10pt', fontWeight: '600' }}
                                                 />
                                             </td>
                                             {topActivities.map((activity) => (
@@ -1799,19 +1814,25 @@
                                 <table className="gradesheet-table">
                                     <thead>
                                         <tr>
-                                            <th style={{ width: '50px' }}>ID</th>
-                                            <th style={{ width: '150px' }}>Student Name</th>
+                                            <th style={{ width: '45px' }}>ID</th>
+                                            <th style={{ width: '140px' }}>Student Name</th>
                                             {bottomActivities.map((activity) => (
-                                                <th key={activity.activity_id} style={{ width: '80px', minWidth: '80px' }}>
-                                                    <div style={{ fontSize: '8pt', lineHeight: '1.1', wordWrap: 'break-word', whiteSpace: 'normal' }}>
-                                                        <input
-                                                            type="text"
-                                                            value={activity.activity_name}
-                                                            onChange={(e) => handleActivityNameEdit(activity.activity_id, e.target.value)}
-                                                            className="no-print-border w-full text-center"
-                                                            style={{ border: 'none', background: 'transparent', fontSize: '8pt', lineHeight: '1.1' }}
-                                                        />
-                                                    </div>
+                                                <th key={activity.activity_id} style={{ width: '90px', minWidth: '90px', maxWidth: '90px' }}>
+                                                    <textarea
+                                                        value={activity.activity_name}
+                                                        onChange={(e) => handleActivityNameEdit(activity.activity_id, e.target.value)}
+                                                        className="no-print-border w-full text-center"
+                                                        rows="2"
+                                                        style={{
+                                                            border: 'none',
+                                                            background: 'transparent',
+                                                            fontSize: '9pt',
+                                                            lineHeight: '1.2',
+                                                            resize: 'none',
+                                                            overflow: 'hidden',
+                                                            fontWeight: '600'
+                                                        }}
+                                                    />
                                                 </th>
                                             ))}
                                         </tr>
@@ -1819,14 +1840,14 @@
                                     <tbody>
                                         {students.map((student) => (
                                             <tr key={student.student_id}>
-                                                <td className="text-center" style={{ fontSize: '9pt' }}>{student.center_student_id}</td>
-                                                <td style={{ fontSize: '9pt', wordWrap: 'break-word', whiteSpace: 'normal' }}>
+                                                <td className="text-center" style={{ fontSize: '10pt', fontWeight: 'bold' }}>{student.center_student_id}</td>
+                                                <td style={{ fontSize: '10pt', fontWeight: '600' }}>
                                                     <input
                                                         type="text"
                                                         value={student.student_name}
                                                         onChange={(e) => handleStudentNameEdit(student.student_id, e.target.value)}
                                                         className="no-print-border w-full"
-                                                        style={{ border: 'none', background: 'transparent', fontSize: '9pt' }}
+                                                        style={{ border: 'none', background: 'transparent', fontSize: '10pt', fontWeight: '600' }}
                                                     />
                                                 </td>
                                                 {bottomActivities.map((activity) => (
@@ -1845,10 +1866,17 @@
                         @media print {
                             @page {
                                 size: A4;
-                                margin: 0.5cm;
+                                margin: 0.3cm;
                             }
 
                             /* Hide everything except the print sheet */
+                            html, body {
+                                margin: 0 !important;
+                                padding: 0 !important;
+                                height: 100%;
+                                overflow: hidden;
+                            }
+
                             body * {
                                 visibility: hidden;
                             }
@@ -1862,7 +1890,8 @@
                                 left: 0;
                                 top: 0;
                                 width: 100%;
-                                padding: 0.5cm;
+                                padding: 0.3cm;
+                                margin: 0;
                             }
 
                             .no-print {
@@ -1880,53 +1909,59 @@
 
                             .gradesheet-table th,
                             .gradesheet-table td {
-                                border: 1.5px solid #000 !important;
-                                padding: 4px !important;
+                                border: 2px solid #000 !important;
+                                padding: 5px !important;
                                 -webkit-print-color-adjust: exact;
                                 print-color-adjust: exact;
                             }
 
                             .gradesheet-table th {
                                 background-color: #ffffff !important;
-                                font-weight: bold !important;
+                                font-weight: 700 !important;
                                 text-align: center !important;
-                                font-size: 8pt !important;
-                                line-height: 1.1 !important;
-                                word-wrap: break-word !important;
-                                white-space: normal !important;
+                                font-size: 9pt !important;
+                                line-height: 1.2 !important;
+                                vertical-align: middle !important;
+                                height: auto !important;
+                                min-height: 35px !important;
                             }
 
                             .gradesheet-table td {
-                                font-size: 9pt !important;
-                                min-height: 25px !important;
-                                height: 25px !important;
+                                font-size: 10pt !important;
+                                font-weight: 600 !important;
+                                min-height: 28px !important;
+                                height: 28px !important;
+                                vertical-align: middle !important;
                             }
 
-                            /* Force input borders to disappear but keep table borders */
-                            input {
+                            /* Force input and textarea borders to disappear but keep table borders */
+                            input, textarea {
                                 border: none !important;
                                 outline: none !important;
                                 background: transparent !important;
                                 -webkit-appearance: none !important;
+                                font-weight: inherit !important;
                             }
 
                             /* Header row styling */
                             .header-row {
-                                border: 2px solid #000 !important;
+                                border: 2.5px solid #000 !important;
                                 -webkit-print-color-adjust: exact;
                                 print-color-adjust: exact;
-                                margin-bottom: 0.3cm !important;
+                                margin-bottom: 0.25cm !important;
                             }
 
                             .header-row > div {
-                                border: 1px solid #000 !important;
+                                border: 1.5px solid #000 !important;
                                 -webkit-print-color-adjust: exact;
                                 print-color-adjust: exact;
+                                font-weight: 700 !important;
                             }
 
                             h3 {
-                                margin-top: 0.2cm !important;
-                                margin-bottom: 0.3cm !important;
+                                margin-top: 0.15cm !important;
+                                margin-bottom: 0.25cm !important;
+                                font-size: 14pt !important;
                             }
                         }
 
@@ -1951,14 +1986,20 @@
                             font-size: 10pt;
                             word-wrap: break-word;
                             white-space: normal;
+                            vertical-align: middle;
                         }
 
                         .gradesheet-table td {
                             min-height: 30px;
+                            vertical-align: middle;
                         }
 
                         .no-print-border:focus {
                             outline: 1px solid #3b82f6;
+                        }
+
+                        textarea {
+                            font-family: inherit;
                         }
                     `}</style>
                 </div>
