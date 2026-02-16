@@ -1269,12 +1269,12 @@
 
                             const filePath = `${user.id}/${sessionId}.jpg`;
                             const { error: uploadError } = await supabase.storage
-                                .from('gradesheets')
+                                .from('topsheets')
                                 .upload(filePath, blob, { upsert: true });
 
                             if (!uploadError) {
                                 const { data: urlData } = supabase.storage
-                                    .from('gradesheets')
+                                    .from('topsheets')
                                     .getPublicUrl(filePath);
 
                                 await supabase

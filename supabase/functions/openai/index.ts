@@ -174,7 +174,7 @@ serve(async (req) => {
               content: [
                 {
                   type: "text",
-                  text: `Extract all data from this gradesheet image. Look carefully for:
+                  text: `Extract all data from this topsheet image. Look carefully for:
 1. center_student_id (a 4-digit number, usually in the first column or next to names)
 2. Student names
 3. Activity/assessment names (usually column headers)
