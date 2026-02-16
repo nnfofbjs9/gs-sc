@@ -76,7 +76,7 @@
         // =====================================================
         // API HELPER - Calls Supabase Edge Function
         // =====================================================
-        async function callOpenAI(action, data) {
+        async function callOpenAI(action, data, retryCount = 0) {
             const session = await supabase.auth.getSession();
             const token = session?.data?.session?.access_token;
 
@@ -84,27 +84,54 @@
                 throw new Error('Not authenticated');
             }
 
-            debugLog('API Request', { action, dataKeys: Object.keys(data || {}) });
+            debugLog('API Request', { action, dataKeys: Object.keys(data || {}), retryCount });
 
-            const response = await fetch(API_ENDPOINT, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`,
-                    'apikey': SUPABASE_ANON_KEY,
-                },
-                body: JSON.stringify({ action, data }),
-            });
+            // Create abort controller for timeout
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 120000); // 120 second timeout for mobile
 
-            const result = await response.json();
-            
-            debugLog('API Response', { status: response.status, result });
+            try {
+                const response = await fetch(API_ENDPOINT, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`,
+                        'apikey': SUPABASE_ANON_KEY,
+                    },
+                    body: JSON.stringify({ action, data }),
+                    signal: controller.signal
+                });
 
-            if (!response.ok) {
-                throw new Error(result.error || 'API request failed');
+                clearTimeout(timeoutId);
+
+                const result = await response.json();
+
+                debugLog('API Response', { status: response.status, result });
+
+                if (!response.ok) {
+                    throw new Error(result.error || 'API request failed');
+                }
+
+                return result;
+            } catch (err) {
+                clearTimeout(timeoutId);
+
+                // Handle network errors and timeouts with retry logic
+                if (err.name === 'AbortError' || err.message === 'Failed to fetch' || err.message.includes('Load failed')) {
+                    console.error(`[Network Error] ${err.message}, attempt ${retryCount + 1}/3`);
+
+                    if (retryCount < 2) {
+                        // Wait 2 seconds before retrying
+                        await new Promise(resolve => setTimeout(resolve, 2000));
+                        console.log(`[Retry] Attempting retry ${retryCount + 2}/3...`);
+                        return callOpenAI(action, data, retryCount + 1);
+                    }
+
+                    throw new Error('Network connection failed. Please check your internet connection and try again.');
+                }
+
+                throw err;
             }
-
-            return result;
         }
 
         // =====================================================
@@ -777,6 +804,7 @@
             const [currentScreen, setCurrentScreen] = useState(initialSession ? 'edit' : 'upload');
             const [uploadedImage, setUploadedImage] = useState(null);
             const [isProcessing, setIsProcessing] = useState(false);
+            const [processingStatus, setProcessingStatus] = useState('');
             const [activities, setActivities] = useState(initialSession?.ocr_processed?.activities || []);
             const [students, setStudents] = useState(initialSession?.ocr_processed?.students || []);
             const [reports, setReports] = useState([]);
@@ -1118,21 +1146,26 @@
                         }
 
                         // Step 2: Determine compression settings based on file size
+                        // More aggressive compression for mobile to reduce network payload
                         const sizeMB = processFile.size / (1024 * 1024);
                         let maxDim, quality;
 
-                        if (sizeMB < 2) {
-                            // Small files: minimal compression
-                            maxDim = 1200;
-                            quality = 0.85;
-                        } else if (sizeMB < 10) {
-                            // Medium files: moderate compression
+                        if (sizeMB < 1) {
+                            // Very small files: minimal compression
+                            maxDim = 1000;
+                            quality = 0.80;
+                        } else if (sizeMB < 3) {
+                            // Small-medium files: moderate compression
                             maxDim = 800;
-                            quality = 0.75;
-                        } else {
-                            // Large files: aggressive compression
-                            maxDim = 600;
+                            quality = 0.70;
+                        } else if (sizeMB < 8) {
+                            // Medium files: aggressive compression
+                            maxDim = 700;
                             quality = 0.65;
+                        } else {
+                            // Large files: very aggressive compression
+                            maxDim = 600;
+                            quality = 0.60;
                         }
 
                         console.log(`[ProcessImage] Size: ${sizeMB.toFixed(2)}MB, maxDim: ${maxDim}, quality: ${quality}`);
@@ -1188,6 +1221,11 @@
 
                                     const compressedSizeKB = Math.round((dataUrl.length * 0.75) / 1024);
                                     console.log(`[ProcessImage] ✓ SUCCESS! Compressed size: ~${compressedSizeKB}KB`);
+
+                                    // Warn if payload is still very large (may cause mobile network issues)
+                                    if (compressedSizeKB > 2048) {
+                                        console.warn(`[ProcessImage] Large payload warning: ${compressedSizeKB}KB may be slow on mobile networks`);
+                                    }
 
                                     clearTimeout(timeoutId);
                                     resolve(dataUrl);
@@ -1304,6 +1342,7 @@
 
                 setError('');
                 setIsProcessing(true);
+                setProcessingStatus('Compressing image...');
 
                 try {
                     // Process image with EXIF orientation handling and smart compression
@@ -1311,7 +1350,9 @@
                     setUploadedImage(processedImage);
 
                     const base64Image = processedImage.split(',')[1];
-                    
+
+                    setProcessingStatus('Analyzing gradesheet...');
+
                     // Call our Edge Function instead of OpenAI directly
                     const data = await callOpenAI('extract', { image: base64Image });
 
@@ -1372,18 +1413,24 @@
 
                     setCurrentScreen('edit');
 
+                    setProcessingStatus('Saving to database...');
+
                     // Auto-save to database (pass autoBatchId directly to avoid React state race condition)
                     await saveSession(extractedData, processedImage, autoBatchId);
 
                     // Immediately match students to DB
                     if (autoBatchId) {
+                        setProcessingStatus('Matching students...');
                         await matchStudentsToDb(autoBatchId, extractedData.students);
                     }
+
+                    setProcessingStatus('');
                 } catch (err) {
                     setError(`Error: ${err.message}`);
                     console.error(err);
                 } finally {
                     setIsProcessing(false);
+                    setProcessingStatus('');
                 }
             };
 
@@ -1881,9 +1928,11 @@
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                                         </svg>
                                         <p className="mb-2 text-lg font-medium text-gray-700">
-                                            {isProcessing ? 'Processing...' : 'Upload Gradesheet'}
+                                            {isProcessing ? (processingStatus || 'Processing...') : 'Upload Gradesheet'}
                                         </p>
-                                        <p className="text-sm text-gray-500">Click to choose camera or upload</p>
+                                        <p className="text-sm text-gray-500">
+                                            {isProcessing ? 'Please wait, this may take a moment on mobile...' : 'Click to choose camera or upload'}
+                                        </p>
                                     </div>
                                 </button>
 
