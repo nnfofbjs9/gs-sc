@@ -1597,7 +1597,17 @@
             };
 
             const handlePrint = () => {
+                // Change title temporarily to avoid browser header text
+                const originalTitle = document.title;
+                document.title = ' ';
+
+                // Print
                 window.print();
+
+                // Restore title after print dialog closes
+                setTimeout(() => {
+                    document.title = originalTitle;
+                }, 100);
             };
 
             const handleStudentNameEdit = (studentId, newName) => {
@@ -1746,17 +1756,19 @@
                             <table className="gradesheet-table mb-6">
                                 <thead>
                                     <tr>
-                                        <th>ID</th>
-                                        <th>Student Name</th>
+                                        <th style={{ width: '50px' }}>ID</th>
+                                        <th style={{ width: '150px' }}>Student Name</th>
                                         {topActivities.map((activity, idx) => (
-                                            <th key={activity.activity_id}>
-                                                <input
-                                                    type="text"
-                                                    value={activity.activity_name}
-                                                    onChange={(e) => handleActivityNameEdit(activity.activity_id, e.target.value)}
-                                                    className="no-print-border w-full text-center"
-                                                    style={{ border: 'none', background: 'transparent', minWidth: '60px' }}
-                                                />
+                                            <th key={activity.activity_id} style={{ width: '80px', minWidth: '80px' }}>
+                                                <div style={{ fontSize: '8pt', lineHeight: '1.1', wordWrap: 'break-word', whiteSpace: 'normal' }}>
+                                                    <input
+                                                        type="text"
+                                                        value={activity.activity_name}
+                                                        onChange={(e) => handleActivityNameEdit(activity.activity_id, e.target.value)}
+                                                        className="no-print-border w-full text-center"
+                                                        style={{ border: 'none', background: 'transparent', fontSize: '8pt', lineHeight: '1.1' }}
+                                                    />
+                                                </div>
                                             </th>
                                         ))}
                                     </tr>
@@ -1764,14 +1776,14 @@
                                 <tbody>
                                     {students.map((student) => (
                                         <tr key={student.student_id}>
-                                            <td className="text-center">{student.center_student_id}</td>
-                                            <td>
+                                            <td className="text-center" style={{ fontSize: '9pt' }}>{student.center_student_id}</td>
+                                            <td style={{ fontSize: '9pt', wordWrap: 'break-word', whiteSpace: 'normal' }}>
                                                 <input
                                                     type="text"
                                                     value={student.student_name}
                                                     onChange={(e) => handleStudentNameEdit(student.student_id, e.target.value)}
                                                     className="no-print-border w-full"
-                                                    style={{ border: 'none', background: 'transparent' }}
+                                                    style={{ border: 'none', background: 'transparent', fontSize: '9pt' }}
                                                 />
                                             </td>
                                             {topActivities.map((activity) => (
@@ -1787,17 +1799,19 @@
                                 <table className="gradesheet-table">
                                     <thead>
                                         <tr>
-                                            <th>ID</th>
-                                            <th>Student Name</th>
+                                            <th style={{ width: '50px' }}>ID</th>
+                                            <th style={{ width: '150px' }}>Student Name</th>
                                             {bottomActivities.map((activity) => (
-                                                <th key={activity.activity_id}>
-                                                    <input
-                                                        type="text"
-                                                        value={activity.activity_name}
-                                                        onChange={(e) => handleActivityNameEdit(activity.activity_id, e.target.value)}
-                                                        className="no-print-border w-full text-center"
-                                                        style={{ border: 'none', background: 'transparent', minWidth: '60px' }}
-                                                    />
+                                                <th key={activity.activity_id} style={{ width: '80px', minWidth: '80px' }}>
+                                                    <div style={{ fontSize: '8pt', lineHeight: '1.1', wordWrap: 'break-word', whiteSpace: 'normal' }}>
+                                                        <input
+                                                            type="text"
+                                                            value={activity.activity_name}
+                                                            onChange={(e) => handleActivityNameEdit(activity.activity_id, e.target.value)}
+                                                            className="no-print-border w-full text-center"
+                                                            style={{ border: 'none', background: 'transparent', fontSize: '8pt', lineHeight: '1.1' }}
+                                                        />
+                                                    </div>
                                                 </th>
                                             ))}
                                         </tr>
@@ -1805,14 +1819,14 @@
                                     <tbody>
                                         {students.map((student) => (
                                             <tr key={student.student_id}>
-                                                <td className="text-center">{student.center_student_id}</td>
-                                                <td>
+                                                <td className="text-center" style={{ fontSize: '9pt' }}>{student.center_student_id}</td>
+                                                <td style={{ fontSize: '9pt', wordWrap: 'break-word', whiteSpace: 'normal' }}>
                                                     <input
                                                         type="text"
                                                         value={student.student_name}
                                                         onChange={(e) => handleStudentNameEdit(student.student_id, e.target.value)}
                                                         className="no-print-border w-full"
-                                                        style={{ border: 'none', background: 'transparent' }}
+                                                        style={{ border: 'none', background: 'transparent', fontSize: '9pt' }}
                                                     />
                                                 </td>
                                                 {bottomActivities.map((activity) => (
@@ -1829,47 +1843,94 @@
                     {/* Print Styles */}
                     <style>{`
                         @media print {
+                            @page {
+                                size: A4;
+                                margin: 0.5cm;
+                            }
+
+                            /* Hide everything except the print sheet */
                             body * {
                                 visibility: hidden;
                             }
+
                             .print-sheet, .print-sheet * {
                                 visibility: visible;
                             }
+
                             .print-sheet {
                                 position: absolute;
                                 left: 0;
                                 top: 0;
                                 width: 100%;
+                                padding: 0.5cm;
                             }
+
                             .no-print {
                                 display: none !important;
                             }
+
+                            /* Force table borders to print */
                             .gradesheet-table {
-                                border-collapse: collapse;
-                                width: 100%;
-                                font-size: 10pt;
+                                border-collapse: collapse !important;
+                                width: 100% !important;
                                 page-break-inside: avoid;
+                                -webkit-print-color-adjust: exact;
+                                print-color-adjust: exact;
                             }
+
                             .gradesheet-table th,
                             .gradesheet-table td {
-                                border: 1px solid black;
-                                padding: 6px;
+                                border: 1.5px solid #000 !important;
+                                padding: 4px !important;
+                                -webkit-print-color-adjust: exact;
+                                print-color-adjust: exact;
                             }
+
                             .gradesheet-table th {
-                                background-color: white;
-                                font-weight: bold;
-                                text-align: center;
+                                background-color: #ffffff !important;
+                                font-weight: bold !important;
+                                text-align: center !important;
+                                font-size: 8pt !important;
+                                line-height: 1.1 !important;
+                                word-wrap: break-word !important;
+                                white-space: normal !important;
                             }
+
+                            .gradesheet-table td {
+                                font-size: 9pt !important;
+                                min-height: 25px !important;
+                                height: 25px !important;
+                            }
+
+                            /* Force input borders to disappear but keep table borders */
                             input {
                                 border: none !important;
                                 outline: none !important;
+                                background: transparent !important;
+                                -webkit-appearance: none !important;
                             }
-                            @page {
-                                size: A4;
-                                margin: 1cm;
+
+                            /* Header row styling */
+                            .header-row {
+                                border: 2px solid #000 !important;
+                                -webkit-print-color-adjust: exact;
+                                print-color-adjust: exact;
+                                margin-bottom: 0.3cm !important;
+                            }
+
+                            .header-row > div {
+                                border: 1px solid #000 !important;
+                                -webkit-print-color-adjust: exact;
+                                print-color-adjust: exact;
+                            }
+
+                            h3 {
+                                margin-top: 0.2cm !important;
+                                margin-bottom: 0.3cm !important;
                             }
                         }
 
+                        /* Screen styles */
                         .gradesheet-table {
                             border-collapse: collapse;
                             width: 100%;
@@ -1887,6 +1948,9 @@
                             background-color: #f3f4f6;
                             font-weight: bold;
                             text-align: center;
+                            font-size: 10pt;
+                            word-wrap: break-word;
+                            white-space: normal;
                         }
 
                         .gradesheet-table td {
