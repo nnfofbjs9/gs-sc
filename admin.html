@@ -1471,6 +1471,437 @@
         }
 
         // =====================================================
+        // GRADESHEET CREATOR COMPONENT
+        // =====================================================
+        function GradesheetCreator() {
+            const [batches, setBatches] = useState([]);
+            const [selectedBatch, setSelectedBatch] = useState('');
+            const [selectedBatchData, setSelectedBatchData] = useState(null);
+            const [classNumber, setClassNumber] = useState('');
+            const [level, setLevel] = useState('');
+            const [students, setStudents] = useState([]);
+            const [activities, setActivities] = useState([]);
+            const [loading, setLoading] = useState(false);
+            const [error, setError] = useState('');
+            const [sheetGenerated, setSheetGenerated] = useState(false);
+
+            // Editable fields for the header
+            const [version, setVersion] = useState('V1');
+            const [editableLevel, setEditableLevel] = useState('');
+            const [editableClass, setEditableClass] = useState('');
+            const [editableBatch, setEditableBatch] = useState('');
+
+            // Load batches on mount
+            useEffect(() => {
+                loadBatches();
+            }, []);
+
+            const loadBatches = async () => {
+                try {
+                    const { data, error } = await supabase
+                        .from('batches')
+                        .select(`
+                            batch_id,
+                            batch_name,
+                            batch_code,
+                            level,
+                            centers (center_name),
+                            is_active
+                        `)
+                        .eq('is_active', true)
+                        .order('batch_name');
+
+                    if (error) throw error;
+                    setBatches(data || []);
+                } catch (err) {
+                    setError('Failed to load batches: ' + err.message);
+                }
+            };
+
+            const handleBatchChange = async (batchId) => {
+                setSelectedBatch(batchId);
+                setSheetGenerated(false);
+                setError('');
+
+                if (!batchId) {
+                    setSelectedBatchData(null);
+                    setStudents([]);
+                    setActivities([]);
+                    return;
+                }
+
+                const batch = batches.find(b => b.batch_id === batchId);
+                setSelectedBatchData(batch);
+                setLevel(batch?.level || '');
+                setEditableLevel(batch?.level || '');
+                setEditableBatch(batch?.batch_code || '');
+            };
+
+            const generateGradesheet = async () => {
+                if (!selectedBatch || !classNumber) {
+                    setError('Please select a batch and enter a class number');
+                    return;
+                }
+
+                setLoading(true);
+                setError('');
+
+                try {
+                    // Fetch students for the selected batch
+                    const { data: studentsData, error: studentsError } = await supabase
+                        .from('students')
+                        .select('student_id, student_name, center_student_id')
+                        .eq('batch_id', selectedBatch)
+                        .eq('is_active', true)
+                        .order('student_name');
+
+                    if (studentsError) throw studentsError;
+
+                    // Fetch activities for the selected level and class number
+                    const { data: activitiesData, error: activitiesError } = await supabase
+                        .from('activities')
+                        .select(`
+                            activity_id,
+                            activity_name,
+                            sequence_in_class,
+                            learning_areas (learning_area_name)
+                        `)
+                        .eq('level', level)
+                        .eq('class_number', classNumber)
+                        .not('sequence_in_class', 'is', null)
+                        .order('sequence_in_class');
+
+                    if (activitiesError) throw activitiesError;
+
+                    if (!activitiesData || activitiesData.length === 0) {
+                        setError('No activities found for Level ' + level + ', Class ' + classNumber);
+                        setLoading(false);
+                        return;
+                    }
+
+                    if (activitiesData.length > 10) {
+                        setError('Maximum 10 activities supported. Found ' + activitiesData.length);
+                        setLoading(false);
+                        return;
+                    }
+
+                    setStudents(studentsData || []);
+                    setActivities(activitiesData || []);
+                    setEditableClass(classNumber);
+                    setSheetGenerated(true);
+                } catch (err) {
+                    setError('Failed to generate gradesheet: ' + err.message);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const handlePrint = () => {
+                window.print();
+            };
+
+            const handleStudentNameEdit = (studentId, newName) => {
+                setStudents(students.map(s =>
+                    s.student_id === studentId ? { ...s, student_name: newName } : s
+                ));
+            };
+
+            const handleActivityNameEdit = (activityId, newName) => {
+                setActivities(activities.map(a =>
+                    a.activity_id === activityId ? { ...a, activity_name: newName } : a
+                ));
+            };
+
+            // Split activities into two tables
+            const splitActivities = () => {
+                const half = Math.ceil(activities.length / 2);
+                return {
+                    topActivities: activities.slice(0, half),
+                    bottomActivities: activities.slice(half)
+                };
+            };
+
+            const { topActivities, bottomActivities } = sheetGenerated ? splitActivities() : { topActivities: [], bottomActivities: [] };
+
+            return (
+                <div>
+                    {/* Controls - Hidden when printing */}
+                    <div className="no-print mb-6 bg-white p-6 rounded-lg shadow">
+                        <h2 className="text-2xl font-bold mb-4">Generate Gradesheet</h2>
+
+                        {error && (
+                            <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+                                {error}
+                            </div>
+                        )}
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Select Batch
+                                </label>
+                                <select
+                                    value={selectedBatch}
+                                    onChange={(e) => handleBatchChange(e.target.value)}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                                >
+                                    <option value="">-- Select Batch --</option>
+                                    {batches.map((batch) => (
+                                        <option key={batch.batch_id} value={batch.batch_id}>
+                                            {batch.batch_name} ({batch.centers?.center_name}) - Level {batch.level}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Class Number (1-36)
+                                </label>
+                                <input
+                                    type="number"
+                                    min="1"
+                                    max="36"
+                                    value={classNumber}
+                                    onChange={(e) => setClassNumber(e.target.value)}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                                    placeholder="Enter class number"
+                                />
+                            </div>
+
+                            <div className="flex items-end">
+                                <button
+                                    onClick={generateGradesheet}
+                                    disabled={loading || !selectedBatch || !classNumber}
+                                    className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                                >
+                                    {loading ? 'Generating...' : 'Generate Gradesheet'}
+                                </button>
+                            </div>
+                        </div>
+
+                        {sheetGenerated && (
+                            <div className="mt-4">
+                                <button
+                                    onClick={handlePrint}
+                                    className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
+                                >
+                                    Print Gradesheet
+                                </button>
+                                <p className="text-sm text-gray-600 mt-2">
+                                    Generated {students.length} students with {activities.length} activities
+                                </p>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Printable Gradesheet */}
+                    {sheetGenerated && (
+                        <div className="print-sheet bg-white p-8">
+                            {/* Header Row */}
+                            <div className="header-row mb-4" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr', gap: '0', border: '2px solid black' }}>
+                                <div style={{ border: '1px solid black', padding: '4px', textAlign: 'center', fontWeight: 'bold' }}>
+                                    <input
+                                        type="text"
+                                        value={version}
+                                        onChange={(e) => setVersion(e.target.value)}
+                                        className="no-print-border w-full text-center font-bold"
+                                        style={{ border: 'none', background: 'transparent' }}
+                                    />
+                                </div>
+                                <div style={{ border: '1px solid black', padding: '4px', textAlign: 'center', fontWeight: 'bold' }}>
+                                    Level: <input
+                                        type="text"
+                                        value={editableLevel}
+                                        onChange={(e) => setEditableLevel(e.target.value)}
+                                        className="no-print-border"
+                                        style={{ border: 'none', background: 'transparent', width: '30px', textAlign: 'center', fontWeight: 'bold' }}
+                                    />
+                                </div>
+                                <div style={{ border: '1px solid black', padding: '4px', textAlign: 'center', fontWeight: 'bold' }}>
+                                    Class: <input
+                                        type="text"
+                                        value={editableClass}
+                                        onChange={(e) => setEditableClass(e.target.value)}
+                                        className="no-print-border"
+                                        style={{ border: 'none', background: 'transparent', width: '40px', textAlign: 'center', fontWeight: 'bold' }}
+                                    />
+                                </div>
+                                <div style={{ border: '1px solid black', padding: '4px', textAlign: 'center', fontWeight: 'bold' }}>
+                                    Batch Code: <input
+                                        type="text"
+                                        value={editableBatch}
+                                        onChange={(e) => setEditableBatch(e.target.value)}
+                                        className="no-print-border"
+                                        style={{ border: 'none', background: 'transparent', width: '40px', textAlign: 'center', fontWeight: 'bold' }}
+                                    />
+                                </div>
+                                <div style={{ border: '1px solid black', padding: '4px', textAlign: 'center', fontWeight: 'bold' }}>
+                                </div>
+                            </div>
+
+                            <h3 className="text-xl font-bold text-center mb-4">Class Topsheet</h3>
+
+                            {/* Top Table */}
+                            <table className="gradesheet-table mb-6">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Student Name</th>
+                                        {topActivities.map((activity, idx) => (
+                                            <th key={activity.activity_id}>
+                                                <input
+                                                    type="text"
+                                                    value={activity.activity_name}
+                                                    onChange={(e) => handleActivityNameEdit(activity.activity_id, e.target.value)}
+                                                    className="no-print-border w-full text-center"
+                                                    style={{ border: 'none', background: 'transparent', minWidth: '60px' }}
+                                                />
+                                            </th>
+                                        ))}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {students.map((student) => (
+                                        <tr key={student.student_id}>
+                                            <td className="text-center">{student.center_student_id}</td>
+                                            <td>
+                                                <input
+                                                    type="text"
+                                                    value={student.student_name}
+                                                    onChange={(e) => handleStudentNameEdit(student.student_id, e.target.value)}
+                                                    className="no-print-border w-full"
+                                                    style={{ border: 'none', background: 'transparent' }}
+                                                />
+                                            </td>
+                                            {topActivities.map((activity) => (
+                                                <td key={activity.activity_id}></td>
+                                            ))}
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+
+                            {/* Bottom Table - Only if there are activities in the bottom half */}
+                            {bottomActivities.length > 0 && (
+                                <table className="gradesheet-table">
+                                    <thead>
+                                        <tr>
+                                            <th>ID</th>
+                                            <th>Student Name</th>
+                                            {bottomActivities.map((activity) => (
+                                                <th key={activity.activity_id}>
+                                                    <input
+                                                        type="text"
+                                                        value={activity.activity_name}
+                                                        onChange={(e) => handleActivityNameEdit(activity.activity_id, e.target.value)}
+                                                        className="no-print-border w-full text-center"
+                                                        style={{ border: 'none', background: 'transparent', minWidth: '60px' }}
+                                                    />
+                                                </th>
+                                            ))}
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {students.map((student) => (
+                                            <tr key={student.student_id}>
+                                                <td className="text-center">{student.center_student_id}</td>
+                                                <td>
+                                                    <input
+                                                        type="text"
+                                                        value={student.student_name}
+                                                        onChange={(e) => handleStudentNameEdit(student.student_id, e.target.value)}
+                                                        className="no-print-border w-full"
+                                                        style={{ border: 'none', background: 'transparent' }}
+                                                    />
+                                                </td>
+                                                {bottomActivities.map((activity) => (
+                                                    <td key={activity.activity_id}></td>
+                                                ))}
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Print Styles */}
+                    <style>{`
+                        @media print {
+                            body * {
+                                visibility: hidden;
+                            }
+                            .print-sheet, .print-sheet * {
+                                visibility: visible;
+                            }
+                            .print-sheet {
+                                position: absolute;
+                                left: 0;
+                                top: 0;
+                                width: 100%;
+                            }
+                            .no-print {
+                                display: none !important;
+                            }
+                            .gradesheet-table {
+                                border-collapse: collapse;
+                                width: 100%;
+                                font-size: 10pt;
+                                page-break-inside: avoid;
+                            }
+                            .gradesheet-table th,
+                            .gradesheet-table td {
+                                border: 1px solid black;
+                                padding: 6px;
+                            }
+                            .gradesheet-table th {
+                                background-color: white;
+                                font-weight: bold;
+                                text-align: center;
+                            }
+                            input {
+                                border: none !important;
+                                outline: none !important;
+                            }
+                            @page {
+                                size: A4;
+                                margin: 1cm;
+                            }
+                        }
+
+                        .gradesheet-table {
+                            border-collapse: collapse;
+                            width: 100%;
+                            margin-bottom: 1rem;
+                        }
+
+                        .gradesheet-table th,
+                        .gradesheet-table td {
+                            border: 1px solid black;
+                            padding: 8px;
+                            text-align: left;
+                        }
+
+                        .gradesheet-table th {
+                            background-color: #f3f4f6;
+                            font-weight: bold;
+                            text-align: center;
+                        }
+
+                        .gradesheet-table td {
+                            min-height: 30px;
+                        }
+
+                        .no-print-border:focus {
+                            outline: 1px solid #3b82f6;
+                        }
+                    `}</style>
+                </div>
+            );
+        }
+
+        // =====================================================
         // ADMIN DASHBOARD COMPONENT
         // =====================================================
         function AdminDashboard({ user, teacher, onSignOut }) {
@@ -1523,6 +1954,16 @@
                             >
                                 Teachers
                             </button>
+                            <button
+                                onClick={() => setActiveTab('gradesheets')}
+                                className={`px-4 py-2 font-medium transition ${
+                                    activeTab === 'gradesheets'
+                                        ? 'text-blue-600 border-b-2 border-blue-600'
+                                        : 'text-gray-600 hover:text-gray-800'
+                                }`}
+                            >
+                                Gradesheets
+                            </button>
                         </div>
 
                         {/* Tab Content */}
@@ -1530,6 +1971,7 @@
                         {activeTab === 'activities' && <ActivityManagement />}
                         {activeTab === 'centers' && <CenterManagement />}
                         {activeTab === 'teachers' && <TeacherManagement />}
+                        {activeTab === 'gradesheets' && <GradesheetCreator />}
                     </div>
                 </div>
             );
