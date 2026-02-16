@@ -1640,7 +1640,7 @@
                 try {
                     const { data, error } = await supabase
                         .from('centers')
-                        .select('center_id, center_name')
+                        .select('center_name')
                         .order('center_name');
 
                     if (error) throw error;
@@ -1659,7 +1659,7 @@
                             batch_name,
                             batch_code,
                             level,
-                            center_id,
+                            center_name,
                             centers (center_name),
                             is_active
                         `)
@@ -1667,7 +1667,7 @@
 
                     // Filter by center if one is selected
                     if (selectedCenter) {
-                        query = query.eq('center_id', selectedCenter);
+                        query = query.eq('center_name', selectedCenter);
                     }
 
                     const { data, error } = await query.order('batch_name');
@@ -1679,8 +1679,8 @@
                 }
             };
 
-            const handleCenterChange = (centerId) => {
-                setSelectedCenter(centerId);
+            const handleCenterChange = (centerName) => {
+                setSelectedCenter(centerName);
                 setSelectedBatch('');
                 setSelectedBatchData(null);
                 setSheetGenerated(false);
@@ -1835,7 +1835,7 @@
                                 >
                                     <option value="">-- All Centers --</option>
                                     {centers.map((center) => (
-                                        <option key={center.center_id} value={center.center_id}>
+                                        <option key={center.center_name} value={center.center_name}>
                                             {center.center_name}
                                         </option>
                                     ))}
