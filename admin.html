@@ -1947,13 +1947,20 @@
                             <h3 className="text-xl font-bold text-center mb-4">Class Topsheet</h3>
 
                             {/* Top Table */}
-                            <table className="topsheet-table mb-6">
+                            <table className="topsheet-table mb-6" style={{ tableLayout: 'fixed', width: '100%' }}>
+                                <colgroup>
+                                    <col style={{ width: '50px' }} />
+                                    <col style={{ width: '120px' }} />
+                                    {topActivities.map((activity, idx) => (
+                                        <col key={activity.activity_id} style={{ width: '130px' }} />
+                                    ))}
+                                </colgroup>
                                 <thead>
                                     <tr>
-                                        <th style={{ width: '50px', minWidth: '50px', maxWidth: '50px' }}>ID</th>
-                                        <th style={{ width: '120px', minWidth: '120px', maxWidth: '120px' }}>Student Name</th>
+                                        <th>ID</th>
+                                        <th>Student Name</th>
                                         {topActivities.map((activity, idx) => (
-                                            <th key={activity.activity_id} style={{ width: '130px', minWidth: '130px', maxWidth: '130px' }}>
+                                            <th key={activity.activity_id}>
                                                 <textarea
                                                     value={activity.activity_name}
                                                     onChange={(e) => handleActivityNameEdit(activity.activity_id, e.target.value)}
@@ -1996,13 +2003,24 @@
 
                             {/* Bottom Table - Only if there are activities in the bottom half */}
                             {bottomActivities.length > 0 && (
-                                <table className="topsheet-table">
+                                <table className="topsheet-table" style={{ tableLayout: 'fixed', width: '100%' }}>
+                                    <colgroup>
+                                        <col style={{ width: '50px' }} />
+                                        <col style={{ width: '120px' }} />
+                                        {bottomActivities.map((activity) => (
+                                            <col key={activity.activity_id} style={{ width: '130px' }} />
+                                        ))}
+                                        {/* Add dummy columns to match top table width */}
+                                        {Array.from({ length: topActivities.length - bottomActivities.length }).map((_, idx) => (
+                                            <col key={`dummy-${idx}`} style={{ width: '130px' }} />
+                                        ))}
+                                    </colgroup>
                                     <thead>
                                         <tr>
-                                            <th style={{ width: '50px', minWidth: '50px', maxWidth: '50px' }}>ID</th>
-                                            <th style={{ width: '120px', minWidth: '120px', maxWidth: '120px' }}>Student Name</th>
+                                            <th>ID</th>
+                                            <th>Student Name</th>
                                             {bottomActivities.map((activity) => (
-                                                <th key={activity.activity_id} style={{ width: '130px', minWidth: '130px', maxWidth: '130px' }}>
+                                                <th key={activity.activity_id}>
                                                     <textarea
                                                         value={activity.activity_name}
                                                         onChange={(e) => handleActivityNameEdit(activity.activity_id, e.target.value)}
@@ -2019,6 +2037,10 @@
                                                         }}
                                                     />
                                                 </th>
+                                            ))}
+                                            {/* Add dummy header cells */}
+                                            {Array.from({ length: topActivities.length - bottomActivities.length }).map((_, idx) => (
+                                                <th key={`dummy-header-${idx}`} style={{ backgroundColor: '#f3f4f6' }}></th>
                                             ))}
                                         </tr>
                                     </thead>
@@ -2037,6 +2059,10 @@
                                                 </td>
                                                 {bottomActivities.map((activity) => (
                                                     <td key={activity.activity_id}></td>
+                                                ))}
+                                                {/* Add dummy data cells */}
+                                                {Array.from({ length: topActivities.length - bottomActivities.length }).map((_, idx) => (
+                                                    <td key={`dummy-cell-${idx}`}></td>
                                                 ))}
                                             </tr>
                                         ))}
