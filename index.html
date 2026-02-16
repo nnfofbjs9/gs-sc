@@ -924,32 +924,28 @@
 
                     setCenterStudentsList(centerStudents);
 
-                    // Helper function to match OCR student with database student
+                    // Helper function to match OCR student with database student (ID-only matching)
                     const findDbStudent = (ocrStudent) => {
-                        const ocrName = ocrStudent.name?.toLowerCase().trim();
                         const ocrRoll = ocrStudent.center_student_id?.toString().trim();
 
-                        // First try center_student_id (center-wide)
+                        // Match by center_student_id only (center-wide)
                         if (ocrRoll) {
                             const paddedRoll = ocrRoll.padStart(4, '0');
-                            const matchById = centerStudents.find(s =>
-                                s.center_student_id?.toString().trim() === ocrRoll ||
-                                s.center_student_id?.toString().trim() === paddedRoll
-                            );
+                            const matchById = centerStudents.find(s => {
+                                const dbId = s.center_student_id?.toString().trim();
+                                if (!dbId) return false;
+
+                                // Check both original and padded versions for bidirectional matching
+                                const paddedDbId = dbId.padStart(4, '0');
+                                return dbId === ocrRoll ||
+                                       dbId === paddedRoll ||
+                                       paddedDbId === ocrRoll ||
+                                       paddedDbId === paddedRoll;
+                            });
                             if (matchById) return matchById;
                         }
 
-                        // Fallback to name matching (batch-level only)
-                        for (const dbStudent of dbStudents) {
-                            const dbName = dbStudent.student_name?.toLowerCase().trim();
-                            if (dbName === ocrName) return dbStudent;
-                            if (ocrName && dbName && ocrName.includes(dbName)) return dbStudent;
-                            if (ocrName && dbName && dbName.includes(ocrName)) return dbStudent;
-                            const ocrFirstName = ocrName?.split(/\s+/)[0];
-                            const dbFirstName = dbName?.split(/\s+/)[0];
-                            if (ocrFirstName && dbFirstName && ocrFirstName === dbFirstName && ocrFirstName.length > 2) return dbStudent;
-                        }
-
+                        // No ID or no match - return null (teacher will manually select from dropdown)
                         return null;
                     };
 
