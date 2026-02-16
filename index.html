@@ -463,7 +463,7 @@
                         .from('sessions')
                         .select(`
                             *,
-                            batches (batch_name, center_id, level),
+                            batches (batch_name, center_name, level),
                             reports (report_id, student_id)
                         `);
                     if (!DEBUG_MODE) {
@@ -628,7 +628,7 @@
                     if (centerError) throw centerError;
                     setCenters(centerData || []);
                     if (centerData?.length > 0) {
-                        setSelectedCenter(centerData[0].center_id);
+                        setSelectedCenter(centerData[0].center_name);
                     }
                 } catch (err) {
                     setError('Failed to load data: ' + err.message);
@@ -645,7 +645,7 @@
                         .from('batches')
                         .insert({
                             batch_name: newBatchName.trim(),
-                            center_id: selectedCenter,
+                            center_name: selectedCenter,
                             teacher_id: user.id
                         })
                         .select('*, centers(center_name)')
@@ -711,7 +711,7 @@
                                             className="px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-brand-teal"
                                         >
                                             {centers.map(c => (
-                                                <option key={c.center_id} value={c.center_id}>
+                                                <option key={c.center_name} value={c.center_name}>
                                                     {c.center_name}
                                                 </option>
                                             ))}
@@ -829,7 +829,7 @@
             const loadBatches = async () => {
                 let query = supabase
                     .from('batches')
-                    .select('batch_id, batch_name, batch_code, center_id')
+                    .select('batch_id, batch_name, batch_code, center_name')
                     .eq('is_active', true);
                 if (!DEBUG_MODE) {
                     query = query.eq('teacher_id', user.id);
@@ -857,9 +857,9 @@
                 debugLog('matchStudentsToDb', { batchId, studentCount: ocrStudents.length });
 
                 try {
-                    // Get center_id for the selected batch
+                    // Get center_name for the selected batch
                     const selectedBatch = batches.find(b => b.batch_id === batchId);
-                    const centerId = selectedBatch?.center_id;
+                    const centerName = selectedBatch?.center_name;
 
                     // OPTIMIZATION: Fetch batch students and all batches in center in parallel
                     const [batchStudentsRes, allBatchesRes] = await Promise.all([
@@ -867,10 +867,10 @@
                             .from('students')
                             .select('student_id, student_name, center_student_id, parent_id')
                             .eq('batch_id', batchId),
-                        centerId ? supabase
+                        centerName ? supabase
                             .from('batches')
                             .select('batch_id')
-                            .eq('center_id', centerId) : Promise.resolve({ data: null })
+                            .eq('center_name', centerName) : Promise.resolve({ data: null })
                     ]);
 
                     const batchStudents = batchStudentsRes.data;

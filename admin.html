@@ -750,7 +750,7 @@
 
                     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                         {centers.map(center => (
-                            <div key={center.center_id} className="bg-white rounded-lg shadow p-4">
+                            <div key={center.center_name} className="bg-white rounded-lg shadow p-4">
                                 <h3 className="font-semibold text-gray-800">{center.center_name}</h3>
                                 <p className="text-sm text-gray-600">{center.location}</p>
                                 {center.contact_email && (
@@ -795,7 +795,7 @@
                 try {
                     const { data: teachersData, error: teachersError } = await supabase
                         .from('teachers')
-                        .select('*, teacher_centers(center_id, centers(center_name))')
+                        .select('*, teacher_centers(center_name, centers(center_name))')
                         .neq('role', 'site_admin')
                         .order('teacher_name');
                     
@@ -832,11 +832,11 @@
                 }
             };
 
-            const assignToCenter = async (teacherId, centerId) => {
+            const assignToCenter = async (teacherId, centerName) => {
                 try {
                     const { error } = await supabase
                         .from('teacher_centers')
-                        .insert({ teacher_id: teacherId, center_id: centerId });
+                        .insert({ teacher_id: teacherId, center_name: centerName });
 
                     if (error) throw error;
                     
@@ -932,7 +932,7 @@
                                             >
                                                 <option value="">+ Add to center</option>
                                                 {centers.map(c => (
-                                                    <option key={c.center_id} value={c.center_id}>
+                                                    <option key={c.center_name} value={c.center_name}>
                                                         {c.center_name}
                                                     </option>
                                                 ))}
@@ -1020,7 +1020,7 @@
                     } else {
                         const { data: tcData } = await supabase
                             .from('teacher_centers')
-                            .select('center_id, centers(center_id, center_name, is_active)')
+                            .select('center_name, centers(center_name, is_active)')
                             .eq('teacher_id', user.id);
                         if (tcData) {
                             centersData = tcData
@@ -1031,12 +1031,12 @@
                     setCenters(centersData);
 
                     // Auto-select center if only one available
-                    const autoCenter = centersData.length === 1 ? centersData[0].center_id : '';
+                    const autoCenter = centersData.length === 1 ? centersData[0].center_name : '';
                     setSelectedCenterId(autoCenter);
 
                     // Set default batch based on auto-selected center
                     const filteredBatches = autoCenter
-                        ? (batchesRes.data || []).filter(b => b.center_id === autoCenter)
+                        ? (batchesRes.data || []).filter(b => b.center_name === autoCenter)
                         : batchesRes.data || [];
                     if (filteredBatches.length > 0) {
                         setStudentForm(prev => ({ ...prev, batch_id: filteredBatches[0].batch_id }));
@@ -1126,9 +1126,9 @@
 
             const resetForm = () => {
                 setParentForm({ parent_name: '', email: '', phone: '', relationship_type: 'parent', preferred_contact: 'email' });
-                const defaultCenter = centers.length === 1 ? centers[0].center_id : '';
+                const defaultCenter = centers.length === 1 ? centers[0].center_name : '';
                 setSelectedCenterId(defaultCenter);
-                const filtered = defaultCenter ? batches.filter(b => b.center_id === defaultCenter) : batches;
+                const filtered = defaultCenter ? batches.filter(b => b.center_name === defaultCenter) : batches;
                 setStudentForm({ student_name: '', date_of_birth: '', batch_id: filtered[0]?.batch_id || '', gender: '', learning_style: [], notes: '', medical_notes: '' });
                 setParentMode('new');
                 setSelectedParentId('');
@@ -1390,13 +1390,13 @@
                                                 onChange={(e) => {
                                                     const cid = e.target.value;
                                                     setSelectedCenterId(cid);
-                                                    const filtered = cid ? batches.filter(b => b.center_id === cid) : batches;
+                                                    const filtered = cid ? batches.filter(b => b.center_name === cid) : batches;
                                                     setStudentForm(prev => ({ ...prev, batch_id: filtered[0]?.batch_id || '' }));
                                                 }}
                                                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" required>
                                                 {centers.length !== 1 && <option value="">-- Select Center --</option>}
                                                 {centers.map(c => (
-                                                    <option key={c.center_id} value={c.center_id}>{c.center_name}</option>
+                                                    <option key={c.center_name} value={c.center_name}>{c.center_name}</option>
                                                 ))}
                                             </select>
                                         </div>
@@ -1406,7 +1406,7 @@
                                                 onChange={(e) => setStudentForm({ ...studentForm, batch_id: e.target.value })}
                                                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" required>
                                                 {!selectedCenterId && <option value="">-- Select a center first --</option>}
-                                                {(selectedCenterId ? batches.filter(b => b.center_id === selectedCenterId) : batches).map(c => (
+                                                {(selectedCenterId ? batches.filter(b => b.center_name === selectedCenterId) : batches).map(c => (
                                                     <option key={c.batch_id} value={c.batch_id}>
                                                         {c.batch_name} {c.batch_code ? `[${c.batch_code}]` : ''}
                                                     </option>
