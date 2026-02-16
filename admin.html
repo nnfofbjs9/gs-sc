@@ -1950,10 +1950,10 @@
                             <table className="topsheet-table mb-6">
                                 <thead>
                                     <tr>
-                                        <th style={{ width: '45px' }}>ID</th>
-                                        <th style={{ width: '140px' }}>Student Name</th>
+                                        <th style={{ width: '50px', minWidth: '50px', maxWidth: '50px' }}>ID</th>
+                                        <th style={{ width: '120px', minWidth: '120px', maxWidth: '120px' }}>Student Name</th>
                                         {topActivities.map((activity, idx) => (
-                                            <th key={activity.activity_id} style={{ width: '90px', minWidth: '90px', maxWidth: '90px' }}>
+                                            <th key={activity.activity_id} style={{ width: '130px', minWidth: '130px', maxWidth: '130px' }}>
                                                 <textarea
                                                     value={activity.activity_name}
                                                     onChange={(e) => handleActivityNameEdit(activity.activity_id, e.target.value)}
@@ -1999,10 +1999,10 @@
                                 <table className="topsheet-table">
                                     <thead>
                                         <tr>
-                                            <th style={{ width: '45px' }}>ID</th>
-                                            <th style={{ width: '140px' }}>Student Name</th>
+                                            <th style={{ width: '50px', minWidth: '50px', maxWidth: '50px' }}>ID</th>
+                                            <th style={{ width: '120px', minWidth: '120px', maxWidth: '120px' }}>Student Name</th>
                                             {bottomActivities.map((activity) => (
-                                                <th key={activity.activity_id} style={{ width: '90px', minWidth: '90px', maxWidth: '90px' }}>
+                                                <th key={activity.activity_id} style={{ width: '130px', minWidth: '130px', maxWidth: '130px' }}>
                                                     <textarea
                                                         value={activity.activity_name}
                                                         onChange={(e) => handleActivityNameEdit(activity.activity_id, e.target.value)}
