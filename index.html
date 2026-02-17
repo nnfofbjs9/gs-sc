@@ -798,6 +798,76 @@
         }
 
         // =====================================================
+        // PROGRESS STEPS COMPONENT
+        // =====================================================
+        const UPLOAD_STEPS = [
+            { label: 'Compressing' },
+            { label: 'Analyzing (OCR)' },
+            { label: 'Saving' },
+            { label: 'Matching' }
+        ];
+
+        function ProgressSteps({ currentStep, steps }) {
+            return (
+                <div className="w-full py-4">
+                    <div className="flex items-center justify-between mb-2">
+                        {steps.map((step, idx) => {
+                            const stepNum = idx + 1;
+                            const isDone = currentStep > stepNum;
+                            const isActive = currentStep === stepNum;
+                            return (
+                                <React.Fragment key={idx}>
+                                    {idx > 0 && (
+                                        <div className={`flex-1 h-1 mx-1 rounded transition-colors duration-500 ${isDone ? 'bg-brand-teal' : 'bg-gray-200'}`} />
+                                    )}
+                                    <div className="flex flex-col items-center" style={{minWidth: '60px'}}>
+                                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all duration-500 ${
+                                            isDone ? 'bg-brand-teal text-white' :
+                                            isActive ? 'bg-brand-teal text-white animate-pulse' :
+                                            'bg-gray-200 text-gray-500'
+                                        }`}>
+                                            {isDone ? (
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
+                                                </svg>
+                                            ) : stepNum}
+                                        </div>
+                                        <span className={`mt-1 text-xs text-center ${isActive ? 'text-brand-teal font-semibold' : isDone ? 'text-brand-teal' : 'text-gray-400'}`}>
+                                            {step.label}
+                                        </span>
+                                    </div>
+                                </React.Fragment>
+                            );
+                        })}
+                    </div>
+                </div>
+            );
+        }
+
+        function ReportProgressBar({ completed, total }) {
+            const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
+            return (
+                <div className="mt-6 w-full max-w-md mx-auto">
+                    <div className="flex justify-between text-sm font-medium text-gray-700 mb-1">
+                        <span>Generating reports</span>
+                        <span>{completed} of {total}</span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                        <div
+                            className="bg-brand-teal h-3 rounded-full transition-all duration-500 ease-out"
+                            style={{ width: `${pct}%` }}
+                        />
+                    </div>
+                    <p className="mt-2 text-xs text-gray-500 text-center">
+                        {completed === 0 ? 'Starting...' :
+                         completed < total ? 'Please wait, this may take a moment...' :
+                         'Finalising...'}
+                    </p>
+                </div>
+            );
+        }
+
+        // =====================================================
         // MAIN SCANNER COMPONENT
         // =====================================================
         function Scanner({ user, initialSession }) {
@@ -805,6 +875,8 @@
             const [uploadedImage, setUploadedImage] = useState(null);
             const [isProcessing, setIsProcessing] = useState(false);
             const [processingStatus, setProcessingStatus] = useState('');
+            const [processingStep, setProcessingStep] = useState(0); // 0=none, 1=compress, 2=OCR, 3=save, 4=match
+            const [reportProgress, setReportProgress] = useState({ completed: 0, total: 0 });
             const [activities, setActivities] = useState(initialSession?.ocr_processed?.activities || []);
             const [students, setStudents] = useState(initialSession?.ocr_processed?.students || []);
             const [reports, setReports] = useState([]);
@@ -1151,21 +1223,21 @@
                         let maxDim, quality;
 
                         if (sizeMB < 1) {
-                            // Very small files: minimal compression
-                            maxDim = 1000;
-                            quality = 0.80;
+                            // Very small files: preserve quality for OCR accuracy
+                            maxDim = 1600;
+                            quality = 0.85;
                         } else if (sizeMB < 3) {
-                            // Small-medium files: moderate compression
+                            // Small-medium files: good balance
+                            maxDim = 1200;
+                            quality = 0.80;
+                        } else if (sizeMB < 8) {
+                            // Medium files: moderate compression
+                            maxDim = 1000;
+                            quality = 0.75;
+                        } else {
+                            // Large files: compress but keep readable
                             maxDim = 800;
                             quality = 0.70;
-                        } else if (sizeMB < 8) {
-                            // Medium files: aggressive compression
-                            maxDim = 700;
-                            quality = 0.65;
-                        } else {
-                            // Large files: very aggressive compression
-                            maxDim = 600;
-                            quality = 0.60;
                         }
 
                         console.log(`[ProcessImage] Size: ${sizeMB.toFixed(2)}MB, maxDim: ${maxDim}, quality: ${quality}`);
@@ -1342,6 +1414,7 @@
 
                 setError('');
                 setIsProcessing(true);
+                setProcessingStep(1);
                 setProcessingStatus('Compressing image...');
 
                 try {
@@ -1351,6 +1424,7 @@
 
                     const base64Image = processedImage.split(',')[1];
 
+                    setProcessingStep(2);
                     setProcessingStatus('Analyzing gradesheet...');
 
                     // Call our Edge Function instead of OpenAI directly
@@ -1413,6 +1487,7 @@
 
                     setCurrentScreen('edit');
 
+                    setProcessingStep(3);
                     setProcessingStatus('Saving to database...');
 
                     // Auto-save to database (pass autoBatchId directly to avoid React state race condition)
@@ -1420,16 +1495,19 @@
 
                     // Immediately match students to DB
                     if (autoBatchId) {
+                        setProcessingStep(4);
                         setProcessingStatus('Matching students...');
                         await matchStudentsToDb(autoBatchId, extractedData.students);
                     }
 
+                    setProcessingStep(0);
                     setProcessingStatus('');
                 } catch (err) {
                     setError(`Error: ${err.message}`);
                     console.error(err);
                 } finally {
                     setIsProcessing(false);
+                    setProcessingStep(0);
                     setProcessingStatus('');
                 }
             };
@@ -1607,66 +1685,93 @@
                           }))
                         : null;
 
-                    // Generate reports in parallel using stored matches
-                    const reportPromises = students.map(async (student, index) => {
-                        const activityGrades = activities.map((activity, idx) =>
+                    // Prepare student data for batch generation
+                    const studentData = students.map(student => ({
+                        name: student.name,
+                        activityGrades: activities.map((activity, idx) =>
                             `${activity}: ${student.grades[idx] || 'Not graded'}`
-                        ).join('\n');
+                        ).join('\n')
+                    }));
 
-                        const data = await callOpenAI('generate_report', {
-                            studentName: student.name,
-                            activityGrades: activityGrades,
-                            activityDefinitions: activityDefinitions,
-                            level: extractedLevel,
-                            classNumber: extractedClassNumber
-                        });
-
-                        const content = data.choices?.[0]?.message?.content?.trim() || '';
-                        const dbStudent = currentMatches[index];
-
-                        return {
-                            studentName: student.name,
-                            studentId: dbStudent?.student_id || null,
-                            centerStudentId: dbStudent?.center_student_id || null,
-                            parentPhone: dbStudent?.parents?.phone || null,
-                            parentName: dbStudent?.parents?.parent_name || null,
-                            report: content,
-                            matchedInDb: !!dbStudent,
-                            _rawResponse: data
-                        };
-                    });
-
-                    const results = await Promise.allSettled(reportPromises);
-
+                    // Batch processing: groups of 5 students per API call
+                    const BATCH_SIZE = 5;
                     const generatedReports = [];
                     const failedStudents = [];
+                    setReportProgress({ completed: 0, total: students.length });
 
-                    results.forEach((result, index) => {
-                        if (result.status === 'fulfilled') {
-                            const report = result.value;
-                            if (report.report && report.report.length > 0) {
-                                generatedReports.push({
-                                    studentId: report.studentId,
-                                    studentName: report.studentName,
-                                    centerStudentId: report.centerStudentId,
-                                    parentPhone: report.parentPhone,
-                                    parentName: report.parentName,
-                                    report: report.report,
-                                    matchedInDb: report.matchedInDb
-                                });
-                            } else {
-                                failedStudents.push({
-                                    name: report.studentName,
-                                    error: 'Empty response from API'
-                                });
-                            }
-                        } else {
-                            failedStudents.push({
-                                name: students[index].name,
-                                error: result.reason?.message || 'Unknown error'
+                    for (let i = 0; i < students.length; i += BATCH_SIZE) {
+                        const batchIndices = students.slice(i, i + BATCH_SIZE).map((_, j) => i + j);
+                        const batchData = batchIndices.map(idx => studentData[idx]);
+
+                        try {
+                            const result = await callOpenAI('generate_reports_batch', {
+                                students: batchData,
+                                activityDefinitions,
+                                level: extractedLevel,
+                                classNumber: extractedClassNumber
                             });
+
+                            const reportTexts = result.reports || [];
+
+                            batchIndices.forEach((studentIdx, batchPos) => {
+                                const reportText = (reportTexts[batchPos] || '').trim();
+                                const dbStudent = currentMatches[studentIdx];
+
+                                if (reportText.length > 0) {
+                                    generatedReports.push({
+                                        studentId: dbStudent?.student_id || null,
+                                        studentName: students[studentIdx].name,
+                                        centerStudentId: dbStudent?.center_student_id || null,
+                                        parentPhone: dbStudent?.parents?.phone || null,
+                                        parentName: dbStudent?.parents?.parent_name || null,
+                                        report: reportText,
+                                        matchedInDb: !!dbStudent
+                                    });
+                                } else {
+                                    failedStudents.push({
+                                        name: students[studentIdx].name,
+                                        error: 'Empty report in batch response'
+                                    });
+                                }
+                            });
+                        } catch (batchErr) {
+                            // Fallback: try each student individually
+                            console.warn(`Batch ${i}-${i + BATCH_SIZE} failed, falling back to individual:`, batchErr.message);
+                            for (const studentIdx of batchIndices) {
+                                try {
+                                    const data = await callOpenAI('generate_report', {
+                                        studentName: students[studentIdx].name,
+                                        activityGrades: studentData[studentIdx].activityGrades,
+                                        activityDefinitions,
+                                        level: extractedLevel,
+                                        classNumber: extractedClassNumber
+                                    });
+                                    const content = data.choices?.[0]?.message?.content?.trim() || '';
+                                    const dbStudent = currentMatches[studentIdx];
+                                    if (content.length > 0) {
+                                        generatedReports.push({
+                                            studentId: dbStudent?.student_id || null,
+                                            studentName: students[studentIdx].name,
+                                            centerStudentId: dbStudent?.center_student_id || null,
+                                            parentPhone: dbStudent?.parents?.phone || null,
+                                            parentName: dbStudent?.parents?.parent_name || null,
+                                            report: content,
+                                            matchedInDb: !!dbStudent
+                                        });
+                                    } else {
+                                        failedStudents.push({ name: students[studentIdx].name, error: 'Empty response' });
+                                    }
+                                } catch (individualErr) {
+                                    failedStudents.push({ name: students[studentIdx].name, error: individualErr.message });
+                                }
+                                setReportProgress(prev => ({ ...prev, completed: prev.completed + 1 }));
+                            }
+                            continue;
                         }
-                    });
+
+                        // Update progress after successful batch
+                        setReportProgress(prev => ({ ...prev, completed: Math.min(i + BATCH_SIZE, students.length) }));
+                    }
 
                     // Build warning message
                     let warningMsg = '';
@@ -1693,6 +1798,7 @@
                     console.error(err);
                 } finally {
                     setIsProcessing(false);
+                    setReportProgress({ completed: 0, total: 0 });
                 }
             };
 
@@ -1936,10 +2042,9 @@
                                     </div>
                                 </button>
 
-                                {isProcessing && (
-                                    <div className="mt-6 text-center">
-                                        <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-brand-teal border-t-transparent"></div>
-                                        <p className="mt-2 text-gray-600">Extracting student data...</p>
+                                {isProcessing && processingStep > 0 && (
+                                    <div className="mt-6">
+                                        <ProgressSteps currentStep={processingStep} steps={UPLOAD_STEPS} />
                                     </div>
                                 )}
                             </div>
@@ -2342,8 +2447,14 @@
 
                             {isProcessing && (
                                 <div className="mt-6 text-center">
-                                    <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-brand-teal border-t-transparent"></div>
-                                    <p className="mt-2 text-gray-600">Creating personalized reports...</p>
+                                    {reportProgress.total > 0 ? (
+                                        <ReportProgressBar completed={reportProgress.completed} total={reportProgress.total} />
+                                    ) : (
+                                        <React.Fragment>
+                                            <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-brand-teal border-t-transparent"></div>
+                                            <p className="mt-2 text-gray-600">Preparing reports...</p>
+                                        </React.Fragment>
+                                    )}
                                 </div>
                             )}
                         </div>

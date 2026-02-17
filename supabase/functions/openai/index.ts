@@ -349,6 +349,89 @@ IMPORTANT:
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
 
+    } else if (action === "generate_reports_batch") {
+      const { students: batchStudents, activityDefinitions } = data;
+
+      if (!batchStudents || !Array.isArray(batchStudents) || batchStudents.length === 0) {
+        throw new Error("No students provided for batch report generation");
+      }
+
+      // Build shared activity context
+      let activityContext = "";
+      if (activityDefinitions && Array.isArray(activityDefinitions) && activityDefinitions.length > 0) {
+        activityContext = "\n\nActivity Definitions (for context):\n";
+        activityDefinitions.forEach((activity: any) => {
+          activityContext += `- ${activity.activityName}`;
+          if (activity.learningArea) {
+            activityContext += ` (${activity.learningArea})`;
+          }
+          if (activity.description) {
+            activityContext += `: ${activity.description}`;
+          }
+          activityContext += "\n";
+        });
+      }
+
+      // Build multi-student prompt
+      const studentSections = batchStudents.map((s: any, i: number) =>
+        `===STUDENT ${i + 1}===\nChild: ${s.name}\n\nActivity Ratings:\n${s.activityGrades}`
+      ).join("\n\n");
+
+      const userPrompt = `${studentSections}${activityContext}
+
+For EACH child above, generate:
+1. A 3-4 line summary in friendly tone.
+2. 3-4 fun, 15-minute home activities.
+Keep total reply per child under 200 words.
+Very important: The response must not contain m-dashes ("\u2014"). Replace them with colons where appropriate.
+
+IMPORTANT: Separate each child's report with the exact line:
+===STUDENT_SEPARATOR===
+Output reports in the same order as the children above.`;
+
+      const response = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${OPENAI_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: "gpt-5-nano",
+          messages: [
+            {
+              role: "system",
+              content: SYSTEM_PROMPT,
+            },
+            {
+              role: "user",
+              content: userPrompt,
+            },
+          ],
+          max_completion_tokens: 2000 * batchStudents.length,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.error) {
+        throw new Error(result.error.message);
+      }
+
+      const fullText = result.choices?.[0]?.message?.content?.trim() || "";
+
+      // Split by separator
+      const reports = fullText.split(/===STUDENT_SEPARATOR===/).map((r: string) => r.trim()).filter((r: string) => r.length > 0);
+
+      return new Response(JSON.stringify({
+        reports,
+        studentCount: batchStudents.length,
+        reportsReturned: reports.length,
+        usage: result.usage
+      }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+
     } else {
       return new Response(JSON.stringify({ error: "Invalid action" }), {
         status: 400,
