@@ -1,4 +1,4 @@
-# Gradesheet Scanner - Vercel Deployment
+# Topsheet - Vercel Deployment
 
 ## Project Structure
 
@@ -43,7 +43,7 @@ vercel --prod
 
 1. Visit your Vercel URL
 2. Sign up / Sign in
-3. Upload a gradesheet image
+3. Upload a topsheet image
 4. The app should now work without asking for an API key!
 
 ## How It Works
@@ -82,7 +82,7 @@ Parent phone numbers are fetched via: `students.parent_id` -> `parents.phone`
 
 ### Student Matching
 
-Students from scanned gradesheets are matched to database records by:
+Students from scanned topsheets are matched to database records by:
 1. **Center Student ID** (a 4-digit, center-scoped identifier written on the worksheet). This match is performed **center-wide**, so a student visiting from another class within the same center will still be matched.
 2. **Name matching** (fallback - case-insensitive, partial matching, class-level only)
 
@@ -96,7 +96,7 @@ Students not found in the database will be flagged with "Not in DB" and their re
 
 ### How It Works
 
-1. When generating reports, the app matches students from the gradesheet to database records
+1. When generating reports, the app matches students from the topsheet to database records
 2. Parent phone is fetched via the `parents` table join
 3. If a phone number is found, the WhatsApp button opens a chat with that number
 4. If no phone number is stored, WhatsApp opens with the message so you can manually select a contact
