@@ -1678,7 +1678,7 @@
                         // Fetch last 5 class reports for this student
                         const { data: recentReports, error: fetchError } = await supabase
                             .from('reports')
-                            .select('report_body, created_at, sessions(class_number, level)')
+                            .select('report_body, created_at, sessions(class_number, batches(level))')
                             .eq('student_id', report.studentId)
                             .order('created_at', { ascending: false })
                             .limit(5);
