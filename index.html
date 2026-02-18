@@ -1665,23 +1665,42 @@
             // Update learning summary for students after class
             const updateLearningSummaries = async (reportsToSave) => {
                 try {
+                    console.log(`[Learning Summary] Starting update for ${reportsToSave.length} students`);
+
                     for (const report of reportsToSave) {
-                        if (!report.studentId) continue;
+                        if (!report.studentId) {
+                            console.log(`[Learning Summary] Skipping report - no student_id`);
+                            continue;
+                        }
+
+                        console.log(`[Learning Summary] Processing student: ${report.studentName} (ID: ${report.studentId})`);
 
                         // Fetch last 5 class reports for this student
-                        const { data: recentReports } = await supabase
+                        const { data: recentReports, error: fetchError } = await supabase
                             .from('reports')
                             .select('report_body, created_at, sessions(class_number, level)')
                             .eq('student_id', report.studentId)
                             .order('created_at', { ascending: false })
                             .limit(5);
 
-                        if (!recentReports || recentReports.length === 0) continue;
+                        if (fetchError) {
+                            console.error(`[Learning Summary] Error fetching reports for ${report.studentName}:`, fetchError);
+                            continue;
+                        }
+
+                        console.log(`[Learning Summary] Found ${recentReports?.length || 0} recent reports for ${report.studentName}`);
+
+                        if (!recentReports || recentReports.length === 0) {
+                            console.log(`[Learning Summary] No reports found for ${report.studentName}, skipping`);
+                            continue;
+                        }
 
                         // Build context from recent reports
                         const reportsContext = recentReports.map((r, idx) =>
                             `Class ${idx + 1} (most recent first):\n${r.report_body}`
                         ).join('\n\n---\n\n');
+
+                        console.log(`[Learning Summary] Calling OpenAI for ${report.studentName}...`);
 
                         // Use OpenAI to generate compressed summary
                         const summaryResult = await callOpenAI('generate_learning_summary', {
@@ -1692,17 +1711,27 @@
 
                         const learningSummary = summaryResult.summary || '';
 
+                        console.log(`[Learning Summary] Generated summary for ${report.studentName} (${learningSummary.length} chars):`, learningSummary.substring(0, 100) + '...');
+
                         // Update student's learning_summary
                         if (learningSummary) {
-                            await supabase
+                            const { error: updateError } = await supabase
                                 .from('students')
                                 .update({ learning_summary: learningSummary })
                                 .eq('student_id', report.studentId);
+
+                            if (updateError) {
+                                console.error(`[Learning Summary] Error updating DB for ${report.studentName}:`, updateError);
+                            } else {
+                                console.log(`[Learning Summary] ✓ Successfully updated DB for ${report.studentName}`);
+                            }
+                        } else {
+                            console.warn(`[Learning Summary] Empty summary for ${report.studentName}, skipping DB update`);
                         }
                     }
-                    console.log('Updated learning summaries for all students');
+                    console.log('[Learning Summary] ✓ Completed update for all students');
                 } catch (err) {
-                    console.error('Failed to update learning summaries:', err);
+                    console.error('[Learning Summary] ERROR:', err);
                 }
             };
 
