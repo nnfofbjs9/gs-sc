@@ -2801,30 +2801,34 @@
                     setShowPasswordReset(true);
                 }
 
-                supabase.auth.getSession().then(async ({ data: { session } }) => {
-                    setUser(session?.user || null);
-                    
-                    // Check if user is site_admin to enable debug mode
-                    if (session?.user) {
-                        const { data: teacher } = await supabase
-                            .from('teachers')
-                            .select('role')
-                            .eq('teacher_id', session.user.id)
-                            .single();
-                        
-                        if (teacher?.role === 'site_admin') {
-                            DEBUG_MODE = true;
-                            setIsSiteAdmin(true);
-                            console.log('[DEBUG MODE ENABLED] You are a site_admin');
-                        }
+                // Helper: check role and enable admin mode if applicable
+                const checkAdminRole = async (userId) => {
+                    const { data: teacher } = await supabase
+                        .from('teachers')
+                        .select('role')
+                        .eq('teacher_id', userId)
+                        .single();
+
+                    if (teacher?.role === 'site_admin') {
+                        DEBUG_MODE = true;
+                        setIsSiteAdmin(true);
+                        console.log('[DEBUG MODE ENABLED] You are a site_admin');
                     }
-                    
+                };
+
+                supabase.auth.getSession().then(({ data: { session } }) => {
+                    setUser(session?.user || null);
                     setLoading(false);
+
+                    // Check role in background (doesn't block rendering)
+                    if (session?.user) {
+                        checkAdminRole(session.user.id);
+                    }
                 });
 
                 const { data: { subscription } } = supabase.auth.onAuthStateChange(
-                    async (event, session) => {
-                        console.log('Auth event:', event); // Debug log
+                    (event, session) => {
+                        console.log('Auth event:', event);
                         setUser(session?.user || null);
 
                         // Detect password recovery event
@@ -2832,19 +2836,9 @@
                             setShowPasswordReset(true);
                         }
 
-                        // Check role on sign-in (handles fresh login on new device)
+                        // Check role on fresh sign-in (handles new device login)
                         if (event === 'SIGNED_IN' && session?.user) {
-                            const { data: teacher } = await supabase
-                                .from('teachers')
-                                .select('role')
-                                .eq('teacher_id', session.user.id)
-                                .single();
-
-                            if (teacher?.role === 'site_admin') {
-                                DEBUG_MODE = true;
-                                setIsSiteAdmin(true);
-                                console.log('[DEBUG MODE ENABLED] You are a site_admin');
-                            }
+                            checkAdminRole(session.user.id);
                         }
                     }
                 );
