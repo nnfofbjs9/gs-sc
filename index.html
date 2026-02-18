@@ -475,7 +475,7 @@
         // =====================================================
         // SESSION HISTORY COMPONENT
         // =====================================================
-        function SessionHistory({ user, onLoadSession }) {
+        function SessionHistory({ user, onLoadSession, isSiteAdmin }) {
             const [sessions, setSessions] = useState([]);
             const [loading, setLoading] = useState(true);
             const [error, setError] = useState('');
@@ -493,7 +493,7 @@
                             batches (batch_name, center_name, level),
                             reports (report_id, student_id)
                         `);
-                    if (!DEBUG_MODE) {
+                    if (!isSiteAdmin) {
                         query = query.eq('teacher_id', user.id);
                     }
                     const { data, error } = await query
@@ -618,7 +618,7 @@
         // =====================================================
         // BATCH MANAGEMENT COMPONENT
         // =====================================================
-        function BatchManagement({ user }) {
+        function BatchManagement({ user, isSiteAdmin }) {
             const [batches, setBatches] = useState([]);
             const [loading, setLoading] = useState(true);
             const [error, setError] = useState('');
@@ -637,7 +637,7 @@
                     let batchQuery = supabase
                         .from('batches')
                         .select('*, centers(center_name), students(student_id, student_name)');
-                    if (!DEBUG_MODE) {
+                    if (!isSiteAdmin) {
                         batchQuery = batchQuery.eq('teacher_id', user.id);
                     }
                     const { data: batchData, error: batchError } = await batchQuery
@@ -828,7 +828,7 @@
         // =====================================================
         // MAIN SCANNER COMPONENT
         // =====================================================
-        function Scanner({ user, initialSession }) {
+        function Scanner({ user, initialSession, isSiteAdmin }) {
             const [currentScreen, setCurrentScreen] = useState(initialSession ? 'edit' : 'upload');
             const [uploadedImage, setUploadedImage] = useState(null);
             const [isProcessing, setIsProcessing] = useState(false);
@@ -873,10 +873,10 @@
                 document.addEventListener('mouseup', onMouseUp);
             };
 
-            // Load teacher's batches on mount
+            // Load teacher's batches on mount, and reload when admin status changes
             useEffect(() => {
                 loadBatches();
-            }, []);
+            }, [isSiteAdmin]);
 
             // Load existing reports if viewing a session
             useEffect(() => {
@@ -890,7 +890,7 @@
                     .from('batches')
                     .select('batch_id, batch_name, batch_code, center_name')
                     .eq('is_active', true);
-                if (!DEBUG_MODE) {
+                if (!isSiteAdmin) {
                     query = query.eq('teacher_id', user.id);
                 }
                 const { data, error } = await query;
@@ -2823,13 +2823,28 @@
                 });
 
                 const { data: { subscription } } = supabase.auth.onAuthStateChange(
-                    (event, session) => {
+                    async (event, session) => {
                         console.log('Auth event:', event); // Debug log
                         setUser(session?.user || null);
-                        
+
                         // Detect password recovery event
                         if (event === 'PASSWORD_RECOVERY') {
                             setShowPasswordReset(true);
+                        }
+
+                        // Check role on sign-in (handles fresh login on new device)
+                        if (event === 'SIGNED_IN' && session?.user) {
+                            const { data: teacher } = await supabase
+                                .from('teachers')
+                                .select('role')
+                                .eq('teacher_id', session.user.id)
+                                .single();
+
+                            if (teacher?.role === 'site_admin') {
+                                DEBUG_MODE = true;
+                                setIsSiteAdmin(true);
+                                console.log('[DEBUG MODE ENABLED] You are a site_admin');
+                            }
                         }
                     }
                 );
@@ -2892,6 +2907,7 @@
                         <Scanner
                             user={user}
                             initialSession={selectedSession}
+                            isSiteAdmin={isSiteAdmin}
                         />
                     )}
 
@@ -2899,11 +2915,12 @@
                         <SessionHistory
                             user={user}
                             onLoadSession={handleLoadSession}
+                            isSiteAdmin={isSiteAdmin}
                         />
                     )}
 
                     {currentView === 'batches' && (
-                        <BatchManagement user={user} />
+                        <BatchManagement user={user} isSiteAdmin={isSiteAdmin} />
                     )}
                     
                     <DebugPanel />
