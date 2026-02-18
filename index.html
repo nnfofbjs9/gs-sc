@@ -834,6 +834,8 @@
             const [isProcessing, setIsProcessing] = useState(false);
             const [processingStatus, setProcessingStatus] = useState('');
             const [reportProgress, setReportProgress] = useState({ completed: 0, total: 0 });
+            const [wakeLock, setWakeLock] = useState(null);
+            const [wakeLockActive, setWakeLockActive] = useState(false);
             const uploadElapsed = useElapsedSeconds(isProcessing && processingStatus !== '');
             const reportElapsed = useElapsedSeconds(isProcessing && currentScreen === 'edit' && processingStatus === '');
             const [activities, setActivities] = useState(initialSession?.ocr_processed?.activities || []);
@@ -884,6 +886,72 @@
                     loadSessionReports(initialSession.session_id);
                 }
             }, [initialSession]);
+
+            // =====================================================
+            // WAKE LOCK MANAGEMENT
+            // Keeps screen on during report generation to prevent
+            // interruption when phone locks
+            // =====================================================
+            const acquireWakeLock = async () => {
+                if (!('wakeLock' in navigator)) {
+                    console.warn('Wake Lock API not supported in this browser');
+                    return false;
+                }
+
+                try {
+                    const lock = await navigator.wakeLock.request('screen');
+                    setWakeLock(lock);
+                    setWakeLockActive(true);
+
+                    // Handle wake lock release (e.g., if user manually locks screen)
+                    lock.addEventListener('release', () => {
+                        console.log('Wake Lock released');
+                        setWakeLockActive(false);
+                    });
+
+                    debugLog('Wake Lock acquired', { type: 'screen' });
+                    return true;
+                } catch (err) {
+                    console.error('Failed to acquire Wake Lock:', err);
+                    setWakeLockActive(false);
+                    return false;
+                }
+            };
+
+            const releaseWakeLock = async () => {
+                if (wakeLock) {
+                    try {
+                        await wakeLock.release();
+                        setWakeLock(null);
+                        setWakeLockActive(false);
+                        debugLog('Wake Lock released manually', {});
+                    } catch (err) {
+                        console.error('Error releasing Wake Lock:', err);
+                    }
+                }
+            };
+
+            // Re-acquire wake lock if page becomes visible again (user returns to app)
+            useEffect(() => {
+                const handleVisibilityChange = async () => {
+                    if (document.visibilityState === 'visible' && isProcessing && reportProgress.total > 0) {
+                        // If we're processing reports and user returns, try to re-acquire
+                        await acquireWakeLock();
+                    }
+                };
+
+                document.addEventListener('visibilitychange', handleVisibilityChange);
+                return () => {
+                    document.removeEventListener('visibilitychange', handleVisibilityChange);
+                };
+            }, [isProcessing, reportProgress.total]);
+
+            // Release wake lock when component unmounts or processing stops
+            useEffect(() => {
+                if (!isProcessing) {
+                    releaseWakeLock();
+                }
+            }, [isProcessing]);
 
             const loadBatches = async () => {
                 let query = supabase
@@ -1649,10 +1717,17 @@
 
                 setIsProcessing(true);
 
+                // Acquire wake lock to prevent screen from turning off during processing
+                const wakeLockAcquired = await acquireWakeLock();
+                if (!wakeLockAcquired) {
+                    console.warn('Proceeding without wake lock - screen may turn off during processing');
+                }
+
                 debugLog('STARTING REPORT GENERATION', {
                     studentCount: students.length,
                     batchId: selectedBatchId,
-                    matchedCount: matchedStudentMap.filter(m => m !== null).length
+                    matchedCount: matchedStudentMap.filter(m => m !== null).length,
+                    wakeLockActive: wakeLockAcquired
                 });
 
                 try {
@@ -2465,6 +2540,19 @@
                                             : 'Creating personalised reports...'}
                                     </p>
                                     <p className="mt-1 text-xs text-gray-400">{formatElapsed(reportElapsed)}</p>
+                                    {wakeLockActive && (
+                                        <p className="mt-2 text-xs text-green-600 flex items-center justify-center gap-1">
+                                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                            </svg>
+                                            Screen will stay on
+                                        </p>
+                                    )}
+                                    {!wakeLockActive && reportProgress.total > 0 && (
+                                        <p className="mt-2 text-xs text-amber-600">
+                                            Keep screen on to avoid interruption
+                                        </p>
+                                    )}
                                 </div>
                             )}
                         </div>
