@@ -298,7 +298,7 @@ IMPORTANT:
       });
 
     } else if (action === "generate_report") {
-      const { studentName, activityGrades, activityDefinitions, level, classNumber } = data;
+      const { studentName, activityGrades, activityDefinitions, level, classNumber, gender, learningStyle, learningSummary } = data;
 
       // Build activity context from definitions if provided
       let activityContext = "";
@@ -316,6 +316,24 @@ IMPORTANT:
         });
       }
 
+      // Build student profile context
+      let studentProfile = "";
+      if (gender) {
+        studentProfile += `\nGender: ${gender}`;
+      }
+      if (learningStyle && Array.isArray(learningStyle) && learningStyle.length > 0) {
+        const styleDescriptions: Record<string, string> = {
+          'looker': 'Visual learner - learns by seeing images, diagrams, and patterns',
+          'listener': 'Auditory learner - learns via sound and discussion',
+          'mover': 'Kinesthetic learner - learns through touch, movement, and hands-on activity'
+        };
+        const styles = learningStyle.map((s: string) => styleDescriptions[s] || s).join('; ');
+        studentProfile += `\nLearning Style: ${styles}`;
+      }
+      if (learningSummary) {
+        studentProfile += `\n\nLearning Progress Summary (from recent classes):\n${learningSummary}`;
+      }
+
       const response = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
         headers: {
@@ -331,7 +349,7 @@ IMPORTANT:
             },
             {
               role: "user",
-              content: `Child: ${studentName}\n\nActivity Ratings:\n${activityGrades}${activityContext}\n\nFor each child, generate:\n1. A 3-4 line summary in friendly tone.\n2. 3-4 fun, 15-minute home activities.\nKeep total reply per child under 200 words.\nVery important: The response must not contain m-dashes ("—"). Replace them with colons where appropriate.`,
+              content: `Child: ${studentName}${studentProfile}\n\nActivity Ratings:\n${activityGrades}${activityContext}\n\nFor each child, generate:\n1. A 3-4 line summary in friendly tone that considers their learning style and progress over time.\n2. 3-4 fun, 15-minute home activities tailored to their learning style.\nKeep total reply per child under 200 words.\nVery important: The response must not contain m-dashes ("—"). Replace them with colons where appropriate.`,
             },
           ],
           max_completion_tokens: 10000,
@@ -372,16 +390,37 @@ IMPORTANT:
         });
       }
 
+      // Helper to build student profile
+      const buildStudentProfile = (student: any) => {
+        let profile = "";
+        if (student.gender) {
+          profile += `\nGender: ${student.gender}`;
+        }
+        if (student.learningStyle && Array.isArray(student.learningStyle) && student.learningStyle.length > 0) {
+          const styleDescriptions: Record<string, string> = {
+            'looker': 'Visual learner - learns by seeing images, diagrams, and patterns',
+            'listener': 'Auditory learner - learns via sound and discussion',
+            'mover': 'Kinesthetic learner - learns through touch, movement, and hands-on activity'
+          };
+          const styles = student.learningStyle.map((s: string) => styleDescriptions[s] || s).join('; ');
+          profile += `\nLearning Style: ${styles}`;
+        }
+        if (student.learningSummary) {
+          profile += `\n\nLearning Progress Summary (from recent classes):\n${student.learningSummary}`;
+        }
+        return profile;
+      };
+
       // Build multi-student prompt
       const studentSections = batchStudents.map((s: any, i: number) =>
-        `===STUDENT ${i + 1}===\nChild: ${s.name}\n\nActivity Ratings:\n${s.activityGrades}`
+        `===STUDENT ${i + 1}===\nChild: ${s.name}${buildStudentProfile(s)}\n\nActivity Ratings:\n${s.activityGrades}`
       ).join("\n\n");
 
       const userPrompt = `${studentSections}${activityContext}
 
 For EACH child above, generate:
-1. A 3-4 line summary in friendly tone.
-2. 3-4 fun, 15-minute home activities.
+1. A 3-4 line summary in friendly tone that considers their learning style and progress over time if provided.
+2. 3-4 fun, 15-minute home activities tailored to their learning style.
 Keep total reply per child under 200 words.
 Very important: The response must not contain m-dashes ("\u2014"). Replace them with colons where appropriate.
 
@@ -428,6 +467,57 @@ Output reports in the same order as the children above.`;
         reportsReturned: reports.length,
         usage: result.usage
       }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+
+    } else if (action === "generate_learning_summary") {
+      const { studentName, reportsContext, reportCount } = data;
+
+      const response = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${OPENAI_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: "gpt-5-nano",
+          messages: [
+            {
+              role: "system",
+              content: `You are an AI assistant that analyzes student progress reports and generates concise learning summaries. Your task is to identify patterns, trends, and key insights from recent class reports to create a brief summary that will be used in future report generation.`,
+            },
+            {
+              role: "user",
+              content: `Student: ${studentName}
+
+Here are the last ${reportCount} class reports for this student:
+
+${reportsContext}
+
+Based on these reports, generate a concise learning summary (max 150 words) that captures:
+1. Overall learning trajectory (improving, consistent, needs support in specific areas)
+2. Key strengths and areas of consistent excellence
+3. Areas that need ongoing attention or practice
+4. Any notable changes or patterns over time
+5. Learning preferences or engagement patterns if evident
+
+This summary will be used to personalize future reports and track long-term progress. Focus on actionable insights and observable patterns. Use clear, direct language.`,
+            },
+          ],
+          max_completion_tokens: 300,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.error) {
+        throw new Error(result.error.message);
+      }
+
+      const summary = result.choices?.[0]?.message?.content?.trim() || "";
+
+      return new Response(JSON.stringify({ summary }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
