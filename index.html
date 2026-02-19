@@ -1709,6 +1709,8 @@
                             reportCount: recentReports.length
                         });
 
+                        console.log(`[Learning Summary] OpenAI response for ${report.studentName}:`, summaryResult);
+
                         const learningSummary = summaryResult.summary || '';
 
                         console.log(`[Learning Summary] Generated summary for ${report.studentName} (${learningSummary.length} chars):`, learningSummary.substring(0, 100) + '...');
@@ -1846,7 +1848,7 @@
                             });
                         } catch (batchErr) {
                             // Fallback: try each student individually
-                            console.warn(`Batch ${i}-${i + BATCH_SIZE} failed, falling back to individual:`, batchErr.message);
+                            console.error(`Batch ${i}-${i + BATCH_SIZE} failed, falling back to individual:`, batchErr);
                             for (const studentIdx of batchIndices) {
                                 try {
                                     const data = await callOpenAI('generate_report', {

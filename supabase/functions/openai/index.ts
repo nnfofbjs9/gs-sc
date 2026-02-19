@@ -411,10 +411,10 @@ IMPORTANT:
         return profile;
       };
 
-      // Build multi-student prompt
+      // Build multi-student prompt (simplified - no confusing markers)
       const studentSections = batchStudents.map((s: any, i: number) =>
-        `===STUDENT ${i + 1}===\nChild: ${s.name}${buildStudentProfile(s)}\n\nActivity Ratings:\n${s.activityGrades}`
-      ).join("\n\n");
+        `Child ${i + 1}: ${s.name}${buildStudentProfile(s)}\n\nActivity Ratings:\n${s.activityGrades}`
+      ).join("\n\n---\n\n");
 
       const userPrompt = `${studentSections}${activityContext}
 
@@ -424,9 +424,10 @@ For EACH child above, generate:
 Keep total reply per child under 200 words.
 Very important: The response must not contain m-dashes ("\u2014"). Replace them with colons where appropriate.
 
-IMPORTANT: Separate each child's report with the exact line:
+IMPORTANT: Output the reports in the same order as the children listed above. Separate each child's report with EXACTLY this line (nothing else on that line):
 ===STUDENT_SEPARATOR===
-Output reports in the same order as the children above.`;
+
+Do NOT include "Child 1:", "Child 2:", or any student numbers/names as headers in your output - start directly with each child's report content.`;
 
       const response = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
@@ -458,8 +459,11 @@ Output reports in the same order as the children above.`;
 
       const fullText = result.choices?.[0]?.message?.content?.trim() || "";
 
-      // Split by separator
-      const reports = fullText.split(/===STUDENT_SEPARATOR===/).map((r: string) => r.trim()).filter((r: string) => r.length > 0);
+      // Split by separator and clean up student markers
+      const reports = fullText
+        .split(/===STUDENT_SEPARATOR===/)
+        .map((r: string) => r.replace(/^===STUDENT \d+===\s*/i, '').trim())
+        .filter((r: string) => r.length > 0);
 
       return new Response(JSON.stringify({
         reports,
