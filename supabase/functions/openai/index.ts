@@ -175,7 +175,7 @@ serve(async (req) => {
           "Authorization": `Bearer ${OPENAI_API_KEY}`,
         },
         body: JSON.stringify({
-          model: "gpt-4o-mini",
+          model: "gpt-5-mini",
           messages: [
             {
               role: "user",
@@ -367,7 +367,7 @@ VALIDATION CHECKLIST BEFORE RESPONDING:
           "Authorization": `Bearer ${OPENAI_API_KEY}`,
         },
         body: JSON.stringify({
-          model: "gpt-5-nano",
+          model: "gpt-5-mini",
           messages: [
             {
               role: "system",
@@ -462,7 +462,7 @@ Do NOT include "Child 1:", "Child 2:", or any student numbers/names as headers i
           "Authorization": `Bearer ${OPENAI_API_KEY}`,
         },
         body: JSON.stringify({
-          model: "gpt-5-nano",
+          model: "gpt-5-mini",
           messages: [
             {
               role: "system",
@@ -511,7 +511,7 @@ Do NOT include "Child 1:", "Child 2:", or any student numbers/names as headers i
           "Authorization": `Bearer ${OPENAI_API_KEY}`,
         },
         body: JSON.stringify({
-          model: "gpt-5-nano",
+          model: "gpt-5-mini",
           messages: [
             {
               role: "system",
