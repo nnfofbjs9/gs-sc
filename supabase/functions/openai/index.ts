@@ -215,6 +215,13 @@ Return ONLY a valid JSON object in this EXACT format:
   ]
 }
 
+IMPORTANT:
+- center_student_id should contain the student ID (a 4-digit number like "0001", "0042"). Extract it if visible.
+- If student ID is not visible for a student, use null
+- grades array must match activities array in order
+- Use "A" for Excellent, "B" for Good, "C" for Needs Practice, "X" for Absent
+- If a grade is unclear, use empty string ""
+
 VALIDATION CHECKLIST BEFORE RESPONDING:
 ✓ Every student has the same number of grades as there are activities
 ✓ No grades array is empty
