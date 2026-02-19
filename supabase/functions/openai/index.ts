@@ -159,6 +159,14 @@ serve(async (req) => {
   try {
     const { action, data } = await req.json();
 
+    // Warm-up ping to prevent cold starts
+    if (action === "ping") {
+      return new Response(JSON.stringify({ status: "ready" }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     if (action === "extract") {
       const response = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
