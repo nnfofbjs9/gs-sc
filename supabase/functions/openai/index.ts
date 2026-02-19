@@ -175,21 +175,33 @@ serve(async (req) => {
           "Authorization": `Bearer ${OPENAI_API_KEY}`,
         },
         body: JSON.stringify({
-          model: "gpt-5-nano",
+          model: "gpt-4o-mini",
           messages: [
             {
               role: "user",
               content: [
                 {
                   type: "text",
-                  text: `Extract all data from this topsheet image. Look carefully for:
-1. center_student_id (a 4-digit number, usually in the first column or next to names)
-2. Student names
-3. Activity/assessment names (usually column headers)
-4. Grades for each student per activity
-5. Batch code: a short numeric code (e.g. "001", "002") printed on the topsheet, usually near the top
-6. Class number visible on the top left of the sheet (represents curriculum progression 1-36 within a level)
-7. Level number (1-5) if visible on the sheet
+                  text: `Extract ALL data from this student gradesheet image with MAXIMUM ACCURACY. Read every cell carefully.
+
+WHAT TO EXTRACT:
+1. center_student_id: 4-digit student ID number (usually first column, e.g., "0001", "0042")
+2. Student names: Full name of each student
+3. Activity names: Column headers for each activity/assessment
+4. Grades: EVERY grade for EVERY student for EVERY activity
+5. Batch code: Short numeric code (e.g., "001", "002") usually near top of sheet
+6. Class number: Curriculum class number (1-36) visible on top left
+7. Level number: Level (1-5) if visible
+
+CRITICAL REQUIREMENTS FOR GRADES:
+- Read EVERY single grade cell - do NOT skip any
+- Use "A" for Excellent/Great/Good work
+- Use "B" for Good/Satisfactory
+- Use "C" for Needs Practice/Could improve
+- Use "X" for Absent/Did not attend
+- ONLY use empty string "" if the cell is truly blank or completely illegible
+- If you can see ANY mark, letter, or symbol in a grade cell, interpret it as A, B, C, or X
+- Double-check that grades array length matches activities array length for EVERY student
 
 Return ONLY a valid JSON object in this EXACT format:
 {
@@ -198,17 +210,16 @@ Return ONLY a valid JSON object in this EXACT format:
   "batchCode": "001" or null,
   "activities": ["Activity 1", "Activity 2", ...],
   "students": [
-    {"center_student_id": "0001", "name": "Student Name", "grades": ["A", "B", ...]},
-    {"center_student_id": "0002", "name": "Another Student", "grades": ["B", "A", ...]}
+    {"center_student_id": "0001", "name": "Student Name", "grades": ["A", "B", "C", "X", ...]},
+    {"center_student_id": "0002", "name": "Another Student", "grades": ["B", "A", "B", "C", ...]}
   ]
 }
 
-IMPORTANT:
-- center_student_id should contain the student ID (a 4-digit number like "0001", "0042"). Extract it if visible.
-- If student ID is not visible for a student, use null
-- grades array must match activities array in order
-- Use "A" for Excellent, "B" for Good, "C" for Needs Practice, "X" for Absent
-- If a grade is unclear, use empty string ""`,
+VALIDATION CHECKLIST BEFORE RESPONDING:
+✓ Every student has the same number of grades as there are activities
+✓ No grades array is empty
+✓ Empty string "" is only used if cell is truly blank/illegible
+✓ All visible grades have been extracted`,
                 },
                 {
                   type: "image_url",

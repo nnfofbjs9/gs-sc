@@ -1311,11 +1311,16 @@
                         // More aggressive compression for mobile to reduce network payload
                         const sizeMB = processFile.size / (1024 * 1024);
                         let maxDim, quality;
+                        let shouldCompress = true;
 
-                        if (sizeMB < 1) {
-                            // Very small files: preserve quality for OCR accuracy
+                        if (sizeMB < 0.5) {
+                            // Very small files (< 500KB): skip compression entirely for best OCR accuracy
+                            shouldCompress = false;
+                            console.log('[ProcessImage] File < 500KB, skipping compression');
+                        } else if (sizeMB < 1) {
+                            // Small files: minimal compression
                             maxDim = 1600;
-                            quality = 0.85;
+                            quality = 0.90;
                         } else if (sizeMB < 3) {
                             // Small-medium files: good balance
                             maxDim = 1200;
@@ -1341,6 +1346,22 @@
                         }
 
                         console.log('[ProcessImage] Calling loadImage library...');
+
+                        // If file is small enough, skip compression and just convert to base64
+                        if (!shouldCompress) {
+                            const reader = new FileReader();
+                            reader.onload = (e) => {
+                                clearTimeout(timeoutId);
+                                console.log('[ProcessImage] ✓ SUCCESS! No compression applied');
+                                resolve(e.target.result);
+                            };
+                            reader.onerror = () => {
+                                clearTimeout(timeoutId);
+                                reject(new Error('Failed to read image file'));
+                            };
+                            reader.readAsDataURL(processFile);
+                            return;
+                        }
 
                         // Step 3: Load image with EXIF orientation handling using blueimp-load-image
                         loadImage(
@@ -1538,14 +1559,44 @@
                         throw new Error('No student data found in the image. Please ensure the gradesheet is clearly visible.');
                     }
 
+                    // Validate that all students have grades
+                    const studentsWithMissingGrades = [];
+                    extractedData.students.forEach((student, idx) => {
+                        if (!student.grades || student.grades.length !== extractedData.activities.length) {
+                            studentsWithMissingGrades.push({
+                                name: student.name,
+                                reason: `Has ${student.grades?.length || 0} grades but should have ${extractedData.activities.length}`
+                            });
+                        } else {
+                            const emptyGradeIndices = student.grades
+                                .map((g, i) => (!g || g.trim() === '') ? i : -1)
+                                .filter(i => i !== -1);
+                            if (emptyGradeIndices.length > 0) {
+                                const activityNames = emptyGradeIndices.map(i => extractedData.activities[i]);
+                                studentsWithMissingGrades.push({
+                                    name: student.name,
+                                    reason: `Missing grades for: ${activityNames.join(', ')}`
+                                });
+                            }
+                        }
+                    });
+
                     // DEBUG: Log OCR extraction results
                     console.log('[OCR] Extracted data:', {
                         batchCode: extractedData.batchCode,
                         level: extractedData.level,
                         classNumber: extractedData.classNumber,
                         studentCount: extractedData.students.length,
-                        firstStudent: extractedData.students[0]
+                        firstStudent: extractedData.students[0],
+                        studentsWithMissingGrades: studentsWithMissingGrades.length
                     });
+
+                    // Show warning if grades are missing
+                    if (studentsWithMissingGrades.length > 0) {
+                        const warningDetails = studentsWithMissingGrades.map(s => `${s.name}: ${s.reason}`).join('\n');
+                        console.warn('[OCR] Students with missing grades:\n', warningDetails);
+                        setError(`⚠️ OCR Warning: ${studentsWithMissingGrades.length} student(s) have missing grades. Please review and fill in the missing data before generating reports.`);
+                    }
 
                     setActivities(extractedData.activities);
                     setStudents(extractedData.students);
@@ -2542,12 +2593,16 @@
                                                         })()}
                                                     </select>
                                                 </td>
-                                                {student.grades.map((grade, gradeIndex) => (
-                                                    <td key={gradeIndex} className="px-3 py-3 text-center">
+                                                {student.grades.map((grade, gradeIndex) => {
+                                                    const isMissing = !grade || grade.trim() === '';
+                                                    return (
+                                                    <td key={gradeIndex} className={`px-3 py-3 text-center ${isMissing ? 'bg-red-50' : ''}`}>
                                                         <select
                                                             value={grade}
                                                             onChange={(e) => updateGrade(studentIndex, gradeIndex, e.target.value)}
-                                                            className="px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-brand-teal text-center"
+                                                            className={`px-2 py-1 border rounded focus:ring-2 focus:ring-brand-teal text-center ${
+                                                                isMissing ? 'border-red-500 bg-red-50 text-red-900' : 'border-gray-300'
+                                                            }`}
                                                         >
                                                             <option value="">-</option>
                                                             <option value="A">A</option>
@@ -2556,7 +2611,8 @@
                                                             <option value="X">X</option>
                                                         </select>
                                                     </td>
-                                                ))}
+                                                    );
+                                                })}
                                                 <td className="px-3 py-3 text-center">
                                                     <button
                                                         onClick={() => deleteStudent(studentIndex)}
@@ -2625,13 +2681,32 @@
                                 </button>
                                 <button
                                     onClick={generateReports}
-                                    disabled={isProcessing || !selectedBatchId || students.length === 0 || students.some(s => !s.name.trim()) || (matchedStudentMap.length > 0 && matchedStudentMap.some(m => m === null))}
+                                    disabled={
+                                        isProcessing ||
+                                        !selectedBatchId ||
+                                        students.length === 0 ||
+                                        students.some(s => !s.name.trim()) ||
+                                        (matchedStudentMap.length > 0 && matchedStudentMap.some(m => m === null)) ||
+                                        students.some(s => s.grades.some(g => !g || g.trim() === ''))
+                                    }
                                     className="ml-auto px-8 py-3 bg-brand-teal text-white rounded-lg font-medium hover:bg-brand-teal-dark disabled:bg-gray-400 disabled:cursor-not-allowed transition"
-                                    title={matchedStudentMap.length > 0 && matchedStudentMap.some(m => m === null) ? 'All students must be matched before generating reports' : ''}
+                                    title={
+                                        students.some(s => s.grades.some(g => !g || g.trim() === ''))
+                                            ? 'All grades must be filled before generating reports'
+                                            : matchedStudentMap.length > 0 && matchedStudentMap.some(m => m === null)
+                                            ? 'All students must be matched before generating reports'
+                                            : ''
+                                    }
                                 >
                                     {isProcessing ? 'Generating...' : 'Generate Reports'}
                                 </button>
                             </div>
+
+                            {!isProcessing && students.some(s => s.grades.some(g => !g || g.trim() === '')) && (
+                                <p className="mt-3 text-sm text-red-700 bg-red-50 border border-red-200 px-4 py-2 rounded-lg">
+                                    <strong>⚠️ Missing Grades Detected:</strong> Some students have missing grades (highlighted in red). All grades must be filled before generating reports.
+                                </p>
+                            )}
 
                             {!isProcessing && selectedBatchId && matchedStudentMap.length > 0 && matchedStudentMap.some(m => m === null) && (
                                 <p className="mt-3 text-sm text-amber-700 bg-amber-50 border border-amber-200 px-4 py-2 rounded-lg">
