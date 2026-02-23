@@ -2110,7 +2110,12 @@
 
                 try {
                     const sessionId = await saveSession(
-                        { activities, students },
+                        {
+                            activities,
+                            students,
+                            classNumber: extractedClassNumber,
+                            level: extractedLevel
+                        },
                         uploadedImage
                     );
 
