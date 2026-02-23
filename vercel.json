@@ -1,0 +1,14 @@
+{
+  "version": 2,
+  "buildCommand": null,
+  "installCommand": null,
+  "git": {
+    "deploymentEnabled": {
+      "main": true,
+      "staging": true
+    }
+  },
+  "github": {
+    "autoAlias": true
+  }
+}

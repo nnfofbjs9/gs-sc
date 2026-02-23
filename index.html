@@ -1817,6 +1817,11 @@
                         }
 
                         console.log(`[Learning Summary] Found ${recentReports?.length || 0} recent reports for ${report.studentName}`);
+                        console.log(`[Learning Summary] Report details:`, recentReports?.map(r => ({
+                            hasBody: !!r.report_body,
+                            bodyLength: r.report_body?.length || 0,
+                            created: r.created_at
+                        })));
 
                         if (!recentReports || recentReports.length === 0) {
                             console.log(`[Learning Summary] No reports found for ${report.studentName}, skipping`);
@@ -1831,17 +1836,31 @@
                         console.log(`[Learning Summary] Calling OpenAI for ${report.studentName}...`);
 
                         // Use OpenAI to generate compressed summary
-                        const summaryResult = await callOpenAI('generate_learning_summary', {
-                            studentName: report.studentName,
-                            reportsContext,
-                            reportCount: recentReports.length
-                        });
+                        let summaryResult;
+                        try {
+                            summaryResult = await callOpenAI('generate_learning_summary', {
+                                studentName: report.studentName,
+                                reportsContext,
+                                reportCount: recentReports.length
+                            });
+                        } catch (openaiError) {
+                            console.error(`[Learning Summary] OpenAI call failed for ${report.studentName}:`, openaiError);
+                            console.error(`[Learning Summary] Error details:`, {
+                                message: openaiError.message,
+                                stack: openaiError.stack,
+                                name: openaiError.name
+                            });
+                            continue;
+                        }
 
                         console.log(`[Learning Summary] OpenAI response for ${report.studentName}:`, summaryResult);
+                        console.log(`[Learning Summary] summaryResult type:`, typeof summaryResult);
+                        console.log(`[Learning Summary] summaryResult.summary exists:`, 'summary' in (summaryResult || {}));
+                        console.log(`[Learning Summary] summaryResult.summary value:`, summaryResult?.summary);
 
-                        const learningSummary = summaryResult.summary || '';
+                        const learningSummary = summaryResult?.summary || '';
 
-                        console.log(`[Learning Summary] Generated summary for ${report.studentName} (${learningSummary.length} chars):`, learningSummary.substring(0, 100) + '...');
+                        console.log(`[Learning Summary] Generated summary for ${report.studentName} (${learningSummary.length} chars):`, learningSummary.substring(0, Math.min(100, learningSummary.length)) + (learningSummary.length > 100 ? '...' : ''));
 
                         // Update student's learning_summary
                         if (learningSummary) {
