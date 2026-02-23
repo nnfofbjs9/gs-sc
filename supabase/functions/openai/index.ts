@@ -598,11 +598,17 @@ This summary will be used to personalize future reports and track recent progres
 
       const result = await response.json();
 
+      console.log("[Learning Summary] OpenAI API Response Status:", response.status);
+      console.log("[Learning Summary] Full OpenAI Result:", JSON.stringify(result, null, 2));
+
       if (result.error) {
+        console.error("[Learning Summary] OpenAI API Error:", result.error);
         throw new Error(result.error.message);
       }
 
       const summary = result.choices?.[0]?.message?.content?.trim() || "";
+      console.log("[Learning Summary] Extracted summary length:", summary.length);
+      console.log("[Learning Summary] Extracted summary:", summary);
 
       return new Response(JSON.stringify({ summary }), {
         status: 200,
