@@ -1845,12 +1845,7 @@
                     // Fetch activities for this class to get learning areas
                     const { data: activities, error: activitiesError } = await supabase
                         .from('activities')
-                        .select(`
-                            activity_name,
-                            learning_areas:learning_area_id (
-                                learning_area_name
-                            )
-                        `)
+                        .select('activity_name, learning_area_name')
                         .eq('level', level)
                         .eq('class_number', classNumber)
                         .order('sequence_in_class', { ascending: true });
@@ -1919,7 +1914,7 @@
                     studentGrades.forEach((grade, idx) => {
                         if (!activities[idx]) return;
 
-                        const learningArea = activities[idx].learning_areas?.learning_area_name || 'Other';
+                        const learningArea = activities[idx].learning_area_name || 'Other';
                         if (!gradesByArea[learningArea]) {
                             gradesByArea[learningArea] = [];
                         }
