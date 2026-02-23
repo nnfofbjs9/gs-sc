@@ -1784,12 +1784,17 @@
                     console.log(`Saved ${reportsToSave.length} reports to database`);
 
                     // Update recent class grades for personalized homework
+                    console.log('[SaveReports] Starting updateRecentGrades for', reportsToSave.length, 'students');
                     for (const report of reportsToSave) {
+                        console.log('[SaveReports] Calling updateRecentGrades for:', report.studentName);
                         await updateRecentGrades(report, sessionId, { students, activities });
                     }
+                    console.log('[SaveReports] Completed updateRecentGrades');
 
                     // Update learning summaries for each student
+                    console.log('[SaveReports] Starting updateLearningSummaries');
                     await updateLearningSummaries(reportsToSave);
+                    console.log('[SaveReports] Completed updateLearningSummaries');
                 } catch (err) {
                     console.error('Failed to save reports:', err);
                 }
@@ -1809,7 +1814,7 @@
                     // Get current session details
                     const { data: session, error: sessionError } = await supabase
                         .from('sessions')
-                        .select('class_number, session_date, batch:batches(level)')
+                        .select('class_number, session_date, batches!inner(level)')
                         .eq('session_id', sessionId)
                         .single();
 
@@ -1819,10 +1824,21 @@
                     }
 
                     const classNumber = session.class_number;
-                    const level = session.batch?.level;
+                    const level = session.batches?.level;
+
+                    console.log(`[Recent Grades] Session data:`, {
+                        classNumber,
+                        level,
+                        sessionDate: session.session_date,
+                        rawSession: session
+                    });
 
                     if (!classNumber || !level) {
-                        console.log(`[Recent Grades] Missing class_number or level, skipping`);
+                        console.error(`[Recent Grades] Missing class_number or level:`, {
+                            classNumber,
+                            level,
+                            session
+                        });
                         return;
                     }
 
@@ -1844,18 +1860,59 @@
                         return;
                     }
 
-                    // Find this student in the currentSessionData
-                    const studentIndex = students.findIndex(s => {
-                        const matched = matchedStudentMap[students.indexOf(s)];
-                        return matched?.student_id === reportToSave.studentId;
-                    });
+                    // Get student grades from the session's OCR data
+                    const { data: sessionData, error: sessionDataError } = await supabase
+                        .from('sessions')
+                        .select('ocr_processed')
+                        .eq('session_id', sessionId)
+                        .single();
 
-                    if (studentIndex === -1) {
-                        console.log(`[Recent Grades] Student not found in current session data`);
+                    if (sessionDataError) {
+                        console.error(`[Recent Grades] Error fetching session OCR data:`, sessionDataError);
                         return;
                     }
 
-                    const studentGrades = students[studentIndex].grades;
+                    if (!sessionData?.ocr_processed) {
+                        console.error(`[Recent Grades] No OCR data in session:`, sessionData);
+                        return;
+                    }
+
+                    console.log(`[Recent Grades] OCR data structure:`, {
+                        hasStudents: !!sessionData.ocr_processed.students,
+                        studentCount: sessionData.ocr_processed.students?.length,
+                        activities: sessionData.ocr_processed.activities
+                    });
+
+                    // Find this student's grades in OCR data
+                    console.log(`[Recent Grades] Looking for student:`, {
+                        name: reportToSave.studentName,
+                        centerStudentId: reportToSave.centerStudentId,
+                        availableStudents: sessionData.ocr_processed.students?.map(s => ({
+                            name: s.name,
+                            center_student_id: s.center_student_id
+                        }))
+                    });
+
+                    const ocrStudent = sessionData.ocr_processed.students?.find(s =>
+                        // Match by center_student_id if available
+                        (s.center_student_id && reportToSave.centerStudentId &&
+                         s.center_student_id === reportToSave.centerStudentId) ||
+                        // Or match by name
+                        (s.name && reportToSave.studentName &&
+                         s.name.toLowerCase() === reportToSave.studentName.toLowerCase())
+                    );
+
+                    if (!ocrStudent || !ocrStudent.grades) {
+                        console.error(`[Recent Grades] Student grades not found in OCR data for ${reportToSave.studentName}`, {
+                            foundStudent: !!ocrStudent,
+                            hasGrades: !!ocrStudent?.grades
+                        });
+                        return;
+                    }
+
+                    console.log(`[Recent Grades] Found student with ${ocrStudent.grades.length} grades`);
+
+                    const studentGrades = ocrStudent.grades;
 
                     // Aggregate grades by learning area
                     const gradesByArea = {};
@@ -1939,12 +1996,13 @@
                         console.log(`[Learning Summary] Processing student: ${report.studentName} (ID: ${report.studentId})`);
 
                         // Fetch last 3 class reports for this student (reduced from 5 for cost efficiency)
+                        // Note: This will include the current session's report if it was just saved
                         const { data: recentReports, error: fetchError } = await supabase
                             .from('reports')
                             .select('report_body, created_at, sessions(class_number, batches(level))')
                             .eq('student_id', report.studentId)
                             .order('created_at', { ascending: false })
-                            .limit(3);
+                            .limit(4);  // Fetch 4 so we can skip the most recent (current) one
 
                         if (fetchError) {
                             console.error(`[Learning Summary] Error fetching reports for ${report.studentName}:`, fetchError);
@@ -1958,16 +2016,23 @@
                             created: r.created_at
                         })));
 
-                        if (!recentReports || recentReports.length === 0) {
-                            console.log(`[Learning Summary] No reports found for ${report.studentName}, skipping`);
+                        // Skip the most recent report (which is the one we just generated) and use previous 3
+                        const previousReports = recentReports?.length > 1 ? recentReports.slice(1, 4) : [];
+
+                        if (!previousReports || previousReports.length === 0) {
+                            console.log(`[Learning Summary] No previous reports found for ${report.studentName} (first class or only 1 report), skipping`);
                             continue;
                         }
 
-                        // Build context from recent reports
-                        const reportsContext = recentReports.map((r, idx) =>
+                        console.log(`[Learning Summary] Using ${previousReports.length} previous reports (excluding current class)`);
+
+                        // Build context from previous reports (not including current class)
+                        const reportsContext = previousReports.map((r, idx) =>
                             `Class ${idx + 1} (most recent first):\n${r.report_body}`
                         ).join('\n\n---\n\n');
 
+                        console.log(`[Learning Summary] Reports context length: ${reportsContext.length} chars`);
+                        console.log(`[Learning Summary] First 200 chars of context:`, reportsContext.substring(0, 200));
                         console.log(`[Learning Summary] Calling OpenAI for ${report.studentName}...`);
 
                         // Use OpenAI to generate compressed summary
@@ -1976,7 +2041,7 @@
                             summaryResult = await callOpenAI('generate_learning_summary', {
                                 studentName: report.studentName,
                                 reportsContext,
-                                reportCount: recentReports.length
+                                reportCount: previousReports.length
                             });
                         } catch (openaiError) {
                             console.error(`[Learning Summary] OpenAI call failed for ${report.studentName}:`, openaiError);
