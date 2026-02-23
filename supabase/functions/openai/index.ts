@@ -346,20 +346,18 @@ VALIDATION CHECKLIST BEFORE RESPONDING:
     } else if (action === "generate_report") {
       const { studentName, activityGrades, activityDefinitions, level, classNumber, gender, learningStyle, learningSummary, recentClassGrades } = data;
 
-      // Build activity context from definitions if provided
+      // Build activity context from definitions if provided - only include learning areas, not detailed descriptions
       let activityContext = "";
       if (activityDefinitions && Array.isArray(activityDefinitions) && activityDefinitions.length > 0) {
-        activityContext = "\n\nActivity Definitions (for context):\n";
+        const learningAreas = new Set<string>();
         activityDefinitions.forEach((activity: any) => {
-          activityContext += `- ${activity.activityName}`;
           if (activity.learningArea) {
-            activityContext += ` (${activity.learningArea})`;
+            learningAreas.add(activity.learningArea);
           }
-          if (activity.description) {
-            activityContext += `: ${activity.description}`;
-          }
-          activityContext += "\n";
         });
+        if (learningAreas.size > 0) {
+          activityContext = "\n\nLearning areas covered in class: " + Array.from(learningAreas).join(", ");
+        }
       }
 
       // Build student profile context
@@ -414,10 +412,19 @@ Generate 3-4 activities that:
 2. SECONDARY (40% of activities): Reinforce areas where student excelled (A grades) to build confidence
 3. If student has no clear weaknesses, provide balanced enrichment across all areas
 
+CRITICAL INSTRUCTIONS FOR PARENT-FRIENDLY ACTIVITIES:
+- Make each activity completely self-contained and easy to understand
+- Do NOT reference specific class activities, stories, or topics (like "Jack and the Beanstalk" or specific themes from class)
+- Do NOT assume parents know what was taught in class
+- Use simple, general descriptions that any parent can follow
+- Explain concepts clearly (e.g., instead of saying "the 4 stages", say "four stages of plant growth: seed, sprout, seedling, full plant")
+- Activities should work for parents with basic English skills
+- Focus on the core skill being practiced, not replicating class activities
+
 For EACH activity output:
-- Learning area being targeted
-- Activity description using ONLY PlayPack items (beads/playdoh/number tiles)
-- 2-3 simple parent steps
+- Name the learning area being targeted (e.g., sequencing, counting, pattern recognition)
+- Describe the activity in simple, clear steps using ONLY PlayPack items (beads/playdoh/number tiles)
+- Make sure any concepts (like plant stages, shapes, etc.) are explained within the activity itself
 
 Keep total reply under 200 words.
 Very important: The response must not contain m-dashes ("—"). Replace them with colons where appropriate.`,
@@ -445,20 +452,18 @@ Very important: The response must not contain m-dashes ("—"). Replace them wit
         throw new Error("No students provided for batch report generation");
       }
 
-      // Build shared activity context
+      // Build shared activity context - only include learning areas, not detailed descriptions
       let activityContext = "";
       if (activityDefinitions && Array.isArray(activityDefinitions) && activityDefinitions.length > 0) {
-        activityContext = "\n\nActivity Definitions (for context):\n";
+        const learningAreas = new Set<string>();
         activityDefinitions.forEach((activity: any) => {
-          activityContext += `- ${activity.activityName}`;
           if (activity.learningArea) {
-            activityContext += ` (${activity.learningArea})`;
+            learningAreas.add(activity.learningArea);
           }
-          if (activity.description) {
-            activityContext += `: ${activity.description}`;
-          }
-          activityContext += "\n";
         });
+        if (learningAreas.size > 0) {
+          activityContext = "\n\nLearning areas covered in class: " + Array.from(learningAreas).join(", ");
+        }
       }
 
       // Helper to build student profile
@@ -504,7 +509,20 @@ Generate 3-4 activities per child that:
 2. SECONDARY (40% of activities): Reinforce areas where student excelled (A grades) to build confidence
 3. If student has no clear weaknesses, provide balanced enrichment across all areas
 
-For EACH activity use ONLY PlayPack items (beads/playdoh/number tiles).
+CRITICAL INSTRUCTIONS FOR PARENT-FRIENDLY ACTIVITIES:
+- Make each activity completely self-contained and easy to understand
+- Do NOT reference specific class activities, stories, or topics (like "Jack and the Beanstalk" or specific themes from class)
+- Do NOT assume parents know what was taught in class
+- Use simple, general descriptions that any parent can follow
+- Explain concepts clearly (e.g., instead of saying "the 4 stages", say "four stages of plant growth: seed, sprout, seedling, full plant")
+- Activities should work for parents with basic English skills
+- Focus on the core skill being practiced, not replicating class activities
+
+For EACH activity:
+- Name the learning area being targeted (e.g., sequencing, counting, pattern recognition)
+- Describe the activity in simple, clear steps using ONLY PlayPack items (beads/playdoh/number tiles)
+- Make sure any concepts (like plant stages, shapes, etc.) are explained within the activity itself
+
 Keep total reply per child under 200 words.
 Very important: The response must not contain m-dashes ("\u2014"). Replace them with colons where appropriate.
 
