@@ -8,11 +8,11 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const supabaseClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
 const SYSTEM_PROMPT = `You are an AI teaching assistant for a preschool enrichment program. You analyze teacher-provided learning area ratings for each child and generate friendly, parent-facing feedback and short home activities using the PlayPack – a box of educational toys. There are 4 ratings: Excellent, Good, Needs Practice and Absent for class (abbreviated A, B, C and X, respectively). Keep the tone warm, supportive, and encouraging. Prioritize educational tasks for those fields in which the child has done poorly, but also those where they have done very well – thus encouraging them in easy tasks while getting them to improve in weak areas.
-The kit contains the following elements beads, playdoh, number tiles (dominos with numbers on them but without dots). Don't require much extra work from the parent even as little as asking them to draw something.
+The kit contains ONLY the following elements: beads, playdoh, number tiles (dominos with numbers on them but without dots). IMPORTANT: Do not suggest any additional materials (no paper, crayons, household items). Don't require much extra work from the parent even as little as asking them to draw something.
 Be very careful that the activities are completely safe for children. None of the activities should involve putting anything in the mouth, climbing or putting oneself or others in danger in anyway.
 For each child, generate:
 1. A 3–4 line summary in friendly tone.
-2. 3-4 fun, 15-minute home activities.
+2. 3-4 fun, 15-minute home activities using ONLY PlayPack items (beads/playdoh/number tiles).
 Keep total reply per child under 200 words.
 Very important: The response must not contain m-dashes ("—"). Replace them with colons where appropriate.
 
@@ -28,6 +28,26 @@ Avoid adverbs.
 Avoid buzzwords and instead use plain English.
 Use jargon where relevant.
 Avoid being salesy or overly enthusiastic and instead express calm confidence.`;
+
+// =====================================================
+// HELPER FUNCTION FOR FORMATTING RECENT GRADES
+// =====================================================
+
+/**
+ * Formats recent class grades for inclusion in GPT prompts
+ */
+function formatRecentGrades(recentClassGrades: any[]): string {
+  if (!recentClassGrades || recentClassGrades.length === 0) {
+    return "No recent class history available.";
+  }
+
+  return recentClassGrades.map(classData => {
+    const gradeStr = Object.entries(classData.grades)
+      .map(([area, grade]) => `${area}: ${grade}`)
+      .join(', ');
+    return `Class ${classData.class_number}: ${gradeStr}`;
+  }).join('\n');
+}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -324,7 +344,7 @@ VALIDATION CHECKLIST BEFORE RESPONDING:
       });
 
     } else if (action === "generate_report") {
-      const { studentName, activityGrades, activityDefinitions, level, classNumber, gender, learningStyle, learningSummary } = data;
+      const { studentName, activityGrades, activityDefinitions, level, classNumber, gender, learningStyle, learningSummary, recentClassGrades } = data;
 
       // Build activity context from definitions if provided
       let activityContext = "";
@@ -360,6 +380,9 @@ VALIDATION CHECKLIST BEFORE RESPONDING:
         studentProfile += `\n\nLearning Progress Summary (from recent classes):\n${learningSummary}`;
       }
 
+      // Format recent grades history
+      const recentGradesText = recentClassGrades ? formatRecentGrades(recentClassGrades) : "No recent class history available.";
+
       const response = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
         headers: {
@@ -375,7 +398,29 @@ VALIDATION CHECKLIST BEFORE RESPONDING:
             },
             {
               role: "user",
-              content: `Child: ${studentName}${studentProfile}\n\nActivity Ratings:\n${activityGrades}${activityContext}\n\nFor each child, generate:\n1. A 3-4 line summary in friendly tone that considers their learning style and progress over time.\n2. 3-4 fun, 15-minute home activities tailored to their learning style.\nKeep total reply per child under 200 words.\nVery important: The response must not contain m-dashes ("—"). Replace them with colons where appropriate.`,
+              content: `Child: ${studentName}${studentProfile}
+
+RECENT PERFORMANCE HISTORY (last 3 classes):
+${recentGradesText}
+
+CURRENT CLASS PERFORMANCE (Class ${classNumber || 'current'}):
+${activityGrades}${activityContext}
+
+TASK:
+Analyze the student's performance across the last 3 classes. Identify learning areas where the student consistently scored C (needs practice) or struggled.
+
+Generate 3-4 activities that:
+1. PRIMARY (60% of activities): Target learning areas where student scored C in 2 or more of the last 3 classes
+2. SECONDARY (40% of activities): Reinforce areas where student excelled (A grades) to build confidence
+3. If student has no clear weaknesses, provide balanced enrichment across all areas
+
+For EACH activity output:
+- Learning area being targeted
+- Activity description using ONLY PlayPack items (beads/playdoh/number tiles)
+- 2-3 simple parent steps
+
+Keep total reply under 200 words.
+Very important: The response must not contain m-dashes ("—"). Replace them with colons where appropriate.`,
             },
           ],
           max_completion_tokens: 10000,
@@ -437,16 +482,29 @@ VALIDATION CHECKLIST BEFORE RESPONDING:
         return profile;
       };
 
-      // Build multi-student prompt (simplified - no confusing markers)
-      const studentSections = batchStudents.map((s: any, i: number) =>
-        `Child ${i + 1}: ${s.name}${buildStudentProfile(s)}\n\nActivity Ratings:\n${s.activityGrades}`
-      ).join("\n\n---\n\n");
+      // Build multi-student prompt with recent grades
+      const studentSections = batchStudents.map((s: any, i: number) => {
+        const recentGradesText = s.recentClassGrades ? formatRecentGrades(s.recentClassGrades) : "No recent class history available.";
+        return `Child ${i + 1}: ${s.name}${buildStudentProfile(s)}
+
+RECENT PERFORMANCE HISTORY (last 3 classes):
+${recentGradesText}
+
+CURRENT CLASS PERFORMANCE:
+${s.activityGrades}`;
+      }).join("\n\n---\n\n");
 
       const userPrompt = `${studentSections}${activityContext}
 
-For EACH child above, generate:
-1. A 3-4 line summary in friendly tone that considers their learning style and progress over time if provided.
-2. 3-4 fun, 15-minute home activities tailored to their learning style.
+TASK:
+For EACH child above, analyze their performance across the last 3 classes. Identify learning areas where they consistently scored C (needs practice) or struggled.
+
+Generate 3-4 activities per child that:
+1. PRIMARY (60% of activities): Target learning areas where student scored C in 2 or more of the last 3 classes
+2. SECONDARY (40% of activities): Reinforce areas where student excelled (A grades) to build confidence
+3. If student has no clear weaknesses, provide balanced enrichment across all areas
+
+For EACH activity use ONLY PlayPack items (beads/playdoh/number tiles).
 Keep total reply per child under 200 words.
 Very important: The response must not contain m-dashes ("\u2014"). Replace them with colons where appropriate.
 
@@ -525,17 +583,16 @@ Here are the last ${reportCount} class reports for this student:
 
 ${reportsContext}
 
-Based on these reports, generate a concise learning summary (max 150 words) that captures:
+Based on these reports, generate a concise learning summary (max 120 words) that captures:
 1. Overall learning trajectory (improving, consistent, needs support in specific areas)
 2. Key strengths and areas of consistent excellence
 3. Areas that need ongoing attention or practice
-4. Any notable changes or patterns over time
-5. Learning preferences or engagement patterns if evident
+4. Any notable trends or patterns across the last 3 classes
 
-This summary will be used to personalize future reports and track long-term progress. Focus on actionable insights and observable patterns. Use clear, direct language.`,
+This summary will be used to personalize future reports and track recent progress. Focus on actionable insights and observable patterns from the last 3 classes. Use clear, direct language.`,
             },
           ],
-          max_completion_tokens: 300,
+          max_completion_tokens: 200,
         }),
       });
 

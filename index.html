@@ -1055,7 +1055,7 @@
                     const [batchStudentsRes, allBatchesRes] = await Promise.all([
                         supabase
                             .from('students')
-                            .select('student_id, student_name, center_student_id, parent_id, gender, learning_style, learning_summary')
+                            .select('student_id, student_name, center_student_id, parent_id, gender, learning_style, learning_summary, recent_class_grades')
                             .eq('batch_id', batchId),
                         centerName ? supabase
                             .from('batches')
@@ -1074,7 +1074,7 @@
                         const allBatchIds = allBatchesRes.data.map(b => b.batch_id);
                         const { data: cStudents } = await supabase
                             .from('students')
-                            .select('student_id, student_name, center_student_id, parent_id, batch_id, gender, learning_style, learning_summary')
+                            .select('student_id, student_name, center_student_id, parent_id, batch_id, gender, learning_style, learning_summary, recent_class_grades')
                             .in('batch_id', allBatchIds);
                         centerStudentData = cStudents || [];
                     }
@@ -1783,6 +1783,11 @@
 
                     console.log(`Saved ${reportsToSave.length} reports to database`);
 
+                    // Update recent class grades for personalized homework
+                    for (const report of reportsToSave) {
+                        await updateRecentGrades(report, sessionId, { students, activities });
+                    }
+
                     // Update learning summaries for each student
                     await updateLearningSummaries(reportsToSave);
                 } catch (err) {
@@ -1791,6 +1796,136 @@
             };
 
             // Update learning summary for students after class
+            // Update recent class grades (last 3 classes) for personalized homework
+            const updateRecentGrades = async (reportToSave, sessionId, currentSessionData) => {
+                try {
+                    if (!reportToSave.studentId || !sessionId) {
+                        console.log(`[Recent Grades] Skipping - missing studentId or sessionId`);
+                        return;
+                    }
+
+                    console.log(`[Recent Grades] Processing student: ${reportToSave.studentName}`);
+
+                    // Get current session details
+                    const { data: session, error: sessionError } = await supabase
+                        .from('sessions')
+                        .select('class_number, session_date, batch:batches(level)')
+                        .eq('session_id', sessionId)
+                        .single();
+
+                    if (sessionError || !session) {
+                        console.error(`[Recent Grades] Error fetching session:`, sessionError);
+                        return;
+                    }
+
+                    const classNumber = session.class_number;
+                    const level = session.batch?.level;
+
+                    if (!classNumber || !level) {
+                        console.log(`[Recent Grades] Missing class_number or level, skipping`);
+                        return;
+                    }
+
+                    // Fetch activities for this class to get learning areas
+                    const { data: activities, error: activitiesError } = await supabase
+                        .from('activities')
+                        .select(`
+                            activity_name,
+                            learning_areas:learning_area_id (
+                                learning_area_name
+                            )
+                        `)
+                        .eq('level', level)
+                        .eq('class_number', classNumber)
+                        .order('sequence_in_class', { ascending: true });
+
+                    if (activitiesError || !activities) {
+                        console.error(`[Recent Grades] Error fetching activities:`, activitiesError);
+                        return;
+                    }
+
+                    // Find this student in the currentSessionData
+                    const studentIndex = students.findIndex(s => {
+                        const matched = matchedStudentMap[students.indexOf(s)];
+                        return matched?.student_id === reportToSave.studentId;
+                    });
+
+                    if (studentIndex === -1) {
+                        console.log(`[Recent Grades] Student not found in current session data`);
+                        return;
+                    }
+
+                    const studentGrades = students[studentIndex].grades;
+
+                    // Aggregate grades by learning area
+                    const gradesByArea = {};
+                    studentGrades.forEach((grade, idx) => {
+                        if (!activities[idx]) return;
+
+                        const learningArea = activities[idx].learning_areas?.learning_area_name || 'Other';
+                        if (!gradesByArea[learningArea]) {
+                            gradesByArea[learningArea] = [];
+                        }
+                        gradesByArea[learningArea].push(grade);
+                    });
+
+                    // Calculate representative grade per learning area
+                    const learningAreaGrades = {};
+                    for (const [area, grades] of Object.entries(gradesByArea)) {
+                        const validGrades = grades.filter(g => g !== 'X'); // Exclude absent
+                        if (validGrades.length === 0) continue;
+
+                        // Simple heuristic: if any C, mark as C; else if all A, mark as A; else B
+                        if (validGrades.some(g => g === 'C')) {
+                            learningAreaGrades[area] = 'C';
+                        } else if (validGrades.every(g => g === 'A')) {
+                            learningAreaGrades[area] = 'A';
+                        } else {
+                            learningAreaGrades[area] = 'B';
+                        }
+                    }
+
+                    // Fetch existing recent_class_grades
+                    const { data: student, error: studentError } = await supabase
+                        .from('students')
+                        .select('recent_class_grades')
+                        .eq('student_id', reportToSave.studentId)
+                        .single();
+
+                    if (studentError) {
+                        console.error(`[Recent Grades] Error fetching student:`, studentError);
+                        return;
+                    }
+
+                    // Append new class grades
+                    let recentGrades = student.recent_class_grades || [];
+                    recentGrades.push({
+                        class_number: classNumber,
+                        session_date: session.session_date,
+                        grades: learningAreaGrades
+                    });
+
+                    // Keep only last 3 classes
+                    if (recentGrades.length > 3) {
+                        recentGrades = recentGrades.slice(-3);
+                    }
+
+                    // Update student record
+                    const { error: updateError } = await supabase
+                        .from('students')
+                        .update({ recent_class_grades: recentGrades })
+                        .eq('student_id', reportToSave.studentId);
+
+                    if (updateError) {
+                        console.error(`[Recent Grades] Error updating student:`, updateError);
+                    } else {
+                        console.log(`[Recent Grades] ✓ Updated for ${reportToSave.studentName}:`, learningAreaGrades);
+                    }
+                } catch (err) {
+                    console.error('[Recent Grades] ERROR:', err);
+                }
+            };
+
             const updateLearningSummaries = async (reportsToSave) => {
                 try {
                     console.log(`[Learning Summary] Starting update for ${reportsToSave.length} students`);
@@ -1803,13 +1938,13 @@
 
                         console.log(`[Learning Summary] Processing student: ${report.studentName} (ID: ${report.studentId})`);
 
-                        // Fetch last 5 class reports for this student
+                        // Fetch last 3 class reports for this student (reduced from 5 for cost efficiency)
                         const { data: recentReports, error: fetchError } = await supabase
                             .from('reports')
                             .select('report_body, created_at, sessions(class_number, batches(level))')
                             .eq('student_id', report.studentId)
                             .order('created_at', { ascending: false })
-                            .limit(5);
+                            .limit(3);
 
                         if (fetchError) {
                             console.error(`[Learning Summary] Error fetching reports for ${report.studentName}:`, fetchError);
@@ -1948,7 +2083,8 @@
                             ).join('\n'),
                             gender: dbStudent?.gender || null,
                             learningStyle: dbStudent?.learning_style || null,
-                            learningSummary: dbStudent?.learning_summary || null
+                            learningSummary: dbStudent?.learning_summary || null,
+                            recentClassGrades: dbStudent?.recent_class_grades || null
                         };
                     });
 
