@@ -1,0 +1,21 @@
+{
+  "name": "enrichment-express-ui-tests",
+  "version": "1.0.0",
+  "description": "UI tests for Enrichment Express preschool management system",
+  "scripts": {
+    "test": "playwright test",
+    "test:ui": "playwright test --ui",
+    "test:headed": "playwright test --headed",
+    "test:debug": "playwright test --debug",
+    "test:auth": "playwright test tests/auth",
+    "test:grading": "playwright test tests/grading",
+    "test:reports": "playwright test tests/reports",
+    "test:smoke": "playwright test tests/smoke",
+    "test:edge-cases": "playwright test tests/edge-cases",
+    "report": "playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.58.2",
+    "dotenv": "^17.3.1"
+  }
+}

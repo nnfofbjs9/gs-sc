@@ -6,6 +6,7 @@ supabase/.branches/
 .env
 .env.local
 .env.*.local
+.env.test
 
 # Node
 node_modules/
@@ -20,3 +21,8 @@ Thumbs.db
 .claude/settings.local.json
 nul
 CLAUDE.md
+
+# Playwright
+test-results/
+playwright-report/
+playwright/.cache/
