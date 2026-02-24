@@ -887,6 +887,644 @@
         }
 
         // =====================================================
+        // UPLOAD SCREEN SUB-COMPONENT
+        // =====================================================
+        function UploadScreen({
+            error, isProcessing, processingStatus, uploadElapsed,
+            showUploadOptions, setShowUploadOptions, handleImageUpload
+        }) {
+            return (
+                <div className="min-h-screen bg-gradient-to-br from-brand-cream to-white p-4">
+                    <div className="max-w-2xl mx-auto pt-8">
+                        <h2 className="text-3xl font-bold text-gray-800 mb-2 text-center">Scan Gradesheet</h2>
+                        <p className="text-gray-600 mb-8 text-center">Upload or photograph a gradesheet to extract data</p>
+
+                        {error && (
+                            <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg mb-6">
+                                {error}
+                            </div>
+                        )}
+
+                        <div className="bg-white rounded-lg shadow-lg p-8">
+                            <button
+                                onClick={() => setShowUploadOptions(true)}
+                                disabled={isProcessing}
+                                className="flex flex-col items-center justify-center w-full h-64 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                                    <svg className="w-16 h-16 mb-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                                    </svg>
+                                    <p className="mb-2 text-lg font-medium text-gray-700">
+                                        {isProcessing ? 'Processing...' : 'Upload Gradesheet'}
+                                    </p>
+                                    <p className="text-sm text-gray-500">
+                                        {isProcessing ? '' : 'Click to choose camera or upload'}
+                                    </p>
+                                </div>
+                            </button>
+
+                            {isProcessing && (
+                                <div className="mt-6 text-center">
+                                    <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-brand-teal border-t-transparent"></div>
+                                    <p className="mt-2 text-gray-600">{processingStatus || 'Processing...'}</p>
+                                    <p className="mt-1 text-xs text-gray-400">{formatElapsed(uploadElapsed)}</p>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Upload Options Modal */}
+                        {showUploadOptions && (
+                            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                                <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+                                    <h3 className="text-xl font-bold text-gray-800 mb-4">Choose Image Source</h3>
+
+                                    <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4">
+                                        <p className="text-sm text-green-800 font-medium">✓ All formats supported</p>
+                                        <p className="text-xs text-green-700">HEIC, JPEG, PNG - images are automatically optimized</p>
+                                    </div>
+
+                                    <div className="space-y-3">
+                                        <label className="flex items-center justify-center w-full p-4 border-2 border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition">
+                                            <svg className="w-6 h-6 mr-3 text-brand-teal" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                                            </svg>
+                                            <span className="font-medium text-gray-700">Take Photo</span>
+                                            <input
+                                                type="file"
+                                                accept="image/*"
+                                                capture="environment"
+                                                onChange={(e) => {
+                                                    setShowUploadOptions(false);
+                                                    handleImageUpload(e);
+                                                }}
+                                                className="hidden"
+                                            />
+                                        </label>
+
+                                        <label className="flex items-center justify-center w-full p-4 border-2 border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition">
+                                            <svg className="w-6 h-6 mr-3 text-brand-teal" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                            </svg>
+                                            <span className="font-medium text-gray-700">Upload from Gallery</span>
+                                            <input
+                                                type="file"
+                                                accept="image/*"
+                                                onChange={(e) => {
+                                                    setShowUploadOptions(false);
+                                                    handleImageUpload(e);
+                                                }}
+                                                className="hidden"
+                                            />
+                                        </label>
+                                    </div>
+
+                                    <button
+                                        onClick={() => setShowUploadOptions(false)}
+                                        className="mt-4 w-full px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
+                                    >
+                                        Cancel
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        }
+
+        // =====================================================
+        // EDIT SCREEN SUB-COMPONENT
+        // =====================================================
+        function EditScreen({
+            error, saveStatus,
+            ocrWarnings, extractedLevel, extractedClassNumber, activityMapping,
+            selectedBatchId, batches, handleBatchChange,
+            isMatching, matchedStudentMap, students, activities,
+            colWidths, startResize, centerStudentsList,
+            showAllBatches, setShowAllBatches,
+            updateActivityName, deleteActivity, addActivity,
+            updateStudentCenterId, updateGrade, deleteStudent, addStudent,
+            handleSaveDraft, handleStartOver, generateReports,
+            isProcessing, reportProgress, reportElapsed, wakeLockActive
+        }) {
+            return (
+                <div className="min-h-screen bg-gray-50 p-4">
+                    <div className="max-w-7xl mx-auto pt-4">
+                        <div className="mb-6 flex justify-between items-center">
+                            <div>
+                                <h2 className="text-2xl font-bold text-gray-800 mb-1">Review & Edit Data</h2>
+                                <p className="text-gray-600">Make any necessary corrections before generating reports</p>
+                            </div>
+                            {saveStatus && (
+                                <span className={`px-3 py-1 rounded text-sm ${
+                                    saveStatus === 'Saved!' ? 'bg-green-100 text-green-700' :
+                                    saveStatus === 'Save failed' ? 'bg-red-100 text-red-700' :
+                                    'bg-gray-100 text-gray-700'
+                                }`}>
+                                    {saveStatus}
+                                </span>
+                            )}
+                        </div>
+
+                        {ocrWarnings && ocrWarnings.length > 0 && (
+                            <div className="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                                <h3 className="text-sm font-semibold text-amber-800 mb-2">⚠️ Activity Mapping Warnings</h3>
+                                <ul className="text-sm text-amber-700 space-y-1">
+                                    {ocrWarnings.map((warning, idx) => (
+                                        <li key={idx}>• {warning}</li>
+                                    ))}
+                                </ul>
+                            </div>
+                        )}
+
+                        {extractedLevel && extractedClassNumber && (
+                            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                                <p className="text-sm text-blue-800">
+                                    📚 Detected: <span className="font-semibold">Level {extractedLevel}, Class {extractedClassNumber}</span>
+                                    {activityMapping && activityMapping.length > 0 && (
+                                        <span className="ml-2 text-green-700">✓ Using predefined activity sequence</span>
+                                    )}
+                                </p>
+                            </div>
+                        )}
+
+                        <div className="mb-4">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Batch</label>
+                            <select
+                                value={selectedBatchId || ''}
+                                onChange={(e) => handleBatchChange(e.target.value)}
+                                className="w-full max-w-xs px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-teal"
+                            >
+                                <option value="">-- Select a batch --</option>
+                                {batches.map(c => (
+                                    <option key={c.batch_id} value={c.batch_id}>
+                                        {c.batch_code ? `${c.batch_code} — ${c.batch_name}` : c.batch_name}
+                                    </option>
+                                ))}
+                            </select>
+                            {!selectedBatchId && (
+                                <p className="mt-1 text-sm text-amber-600">
+                                    Please select a batch so students can be matched to database records.
+                                </p>
+                            )}
+                            {isMatching && (
+                                <div className="mt-1 flex items-center gap-2">
+                                    <div className="inline-block animate-spin rounded-full h-4 w-4 border-2 border-brand-teal border-t-transparent"></div>
+                                    <p className="text-sm text-brand-teal">Verifying students...</p>
+                                </div>
+                            )}
+                            {!isMatching && selectedBatchId && matchedStudentMap.length > 0 && (
+                                <p className="mt-1 text-sm text-green-700">
+                                    {matchedStudentMap.filter(m => m !== null).length} of {students.length} students matched
+                                </p>
+                            )}
+                        </div>
+
+                        {error && (
+                            <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg mb-6">
+                                {error}
+                            </div>
+                        )}
+
+                        <div className="mb-3 flex items-center gap-4 text-xs text-gray-500">
+                            <span className="font-semibold text-gray-600">Grade key:</span>
+                            <span><strong>A</strong> = Excellent</span>
+                            <span><strong>B</strong> = Good</span>
+                            <span><strong>C</strong> = Needs Practice</span>
+                            <span><strong>X</strong> = Absent</span>
+                        </div>
+
+                        {selectedBatchId && (
+                            <div className="mb-3 flex items-center">
+                                <label className="flex items-center text-sm text-gray-600 cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        checked={showAllBatches}
+                                        onChange={(e) => setShowAllBatches(e.target.checked)}
+                                        className="mr-2 h-4 w-4 text-brand-teal focus:ring-brand-teal rounded"
+                                    />
+                                    Show students from other batches
+                                </label>
+                            </div>
+                        )}
+
+                        <div className={`bg-white rounded-lg shadow overflow-x-auto ${isMatching ? 'relative' : ''}`}>
+                            {isMatching && (
+                                <div className="absolute inset-0 bg-gray-100 bg-opacity-60 z-10 rounded-lg"></div>
+                            )}
+                            <table className="border-collapse" style={{ tableLayout: 'fixed', width: colWidths.name + colWidths.centerId + activities.length * 100 + 80 }}>
+                                <colgroup>
+                                    <col style={{ width: colWidths.name }} />
+                                    <col style={{ width: colWidths.centerId }} />
+                                    {activities.map((_, i) => (
+                                        <col key={i} style={{ width: 100 }} />
+                                    ))}
+                                    <col style={{ width: 80 }} />
+                                </colgroup>
+                                <thead className="bg-gray-100 border-b-2 border-gray-300">
+                                    <tr>
+                                        <th className="px-3 py-3 text-left text-sm font-semibold text-gray-700 border-r border-gray-300 sticky left-0 bg-gray-100" style={{ position: 'relative' }}>
+                                            Student Name
+                                            <div onMouseDown={(e) => startResize('name', e)} style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 6, cursor: 'col-resize', zIndex: 1 }} onMouseOver={(e) => e.currentTarget.style.background='#cbd5e1'} onMouseOut={(e) => e.currentTarget.style.background='transparent'} />
+                                        </th>
+                                        <th className="px-3 py-3 text-left text-sm font-semibold text-gray-700 border-r border-gray-300 bg-gray-100" style={{ position: 'relative' }}>
+                                            Center Student ID
+                                            <div onMouseDown={(e) => startResize('centerId', e)} style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 6, cursor: 'col-resize', zIndex: 1 }} onMouseOver={(e) => e.currentTarget.style.background='#cbd5e1'} onMouseOut={(e) => e.currentTarget.style.background='transparent'} />
+                                        </th>
+                                        {activities.map((activity, index) => (
+                                            <th key={index} className="px-3 py-3 text-center text-sm font-semibold text-gray-700">
+                                                <input
+                                                    type="text"
+                                                    value={activity}
+                                                    onChange={(e) => updateActivityName(index, e.target.value)}
+                                                    className="w-full px-2 py-1 border border-gray-300 rounded text-center focus:ring-2 focus:ring-brand-teal"
+                                                />
+                                                <button
+                                                    onClick={() => deleteActivity(index)}
+                                                    className="mt-1 text-xs text-red-600 hover:text-red-800"
+                                                >
+                                                    Delete
+                                                </button>
+                                            </th>
+                                        ))}
+                                        <th className="px-3 py-3 text-center text-sm font-semibold text-gray-700">
+                                            <button
+                                                onClick={addActivity}
+                                                className="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700"
+                                            >
+                                                + Activity
+                                            </button>
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {students.map((student, studentIndex) => {
+                                        const matched = matchedStudentMap[studentIndex];
+                                        const isVisitingStudent = matched && selectedBatchId && matched.batch_id && matched.batch_id !== selectedBatchId;
+                                        return (
+                                        <tr key={studentIndex} className={`border-b hover:bg-gray-50 ${matched ? '' : selectedBatchId ? 'bg-amber-50' : ''}`}>
+                                            <td className={`px-3 py-3 border-r border-gray-300 sticky left-0 ${matched ? 'bg-white' : selectedBatchId ? 'bg-amber-50' : 'bg-white'} ${isVisitingStudent ? 'border-l-4 border-l-blue-500' : ''}`}>
+                                                <div className="flex items-center gap-1">
+                                                    {selectedBatchId && matchedStudentMap.length > 0 && (
+                                                        <span title={matched ? `Matched: ${matched.student_name}` : 'Not found in database'} className="flex-shrink-0">
+                                                            {matched
+                                                                ? <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"/></svg>
+                                                                : <svg className="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01M12 3a9 9 0 100 18 9 9 0 000-18z"/></svg>
+                                                            }
+                                                        </span>
+                                                    )}
+                                                    <span className="w-full px-2 py-1 text-gray-800">{student.name || '—'}</span>
+                                                    {isVisitingStudent && (
+                                                        <span className="ml-1 px-1.5 py-0.5 text-xs bg-blue-100 text-blue-700 rounded whitespace-nowrap">
+                                                            Visiting
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </td>
+                                            <td className={`px-3 py-3 border-r border-gray-300 ${matched ? 'bg-white' : selectedBatchId ? 'bg-amber-50' : 'bg-white'}`}>
+                                                <select
+                                                    value={student.center_student_id || ''}
+                                                    onChange={(e) => updateStudentCenterId(studentIndex, e.target.value)}
+                                                    className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-brand-teal"
+                                                >
+                                                    <option value="">-- Select Student --</option>
+                                                    {(() => {
+                                                        const usedIds = students
+                                                            .filter((_, i) => i !== studentIndex)
+                                                            .map(s => s.center_student_id?.toString().trim())
+                                                            .filter(Boolean);
+
+                                                        // Filter students based on toggle state
+                                                        const filteredStudents = centerStudentsList
+                                                            .filter(cs => {
+                                                                // Filter out already-used IDs
+                                                                if (usedIds.includes(cs.center_student_id?.toString().trim())) return false;
+
+                                                                // If toggle is OFF, show only selected batch
+                                                                if (!showAllBatches) return cs.batch_id === selectedBatchId;
+
+                                                                // If toggle is ON, show all batches
+                                                                return true;
+                                                            })
+                                                            .sort((a, b) => (a.center_student_id || '').localeCompare(b.center_student_id || ''));
+
+                                                        // Group students by batch
+                                                        const studentsByBatch = filteredStudents.reduce((acc, cs) => {
+                                                            const batchId = cs.batch_id;
+                                                            if (!acc[batchId]) acc[batchId] = [];
+                                                            acc[batchId].push(cs);
+                                                            return acc;
+                                                        }, {});
+
+                                                        // Render with optgroup if multiple batches and toggle is ON
+                                                        if (showAllBatches && Object.keys(studentsByBatch).length > 1) {
+                                                            return Object.entries(studentsByBatch).map(([batchId, students]) => {
+                                                                const batch = batches.find(b => b.batch_id === batchId);
+                                                                const batchLabel = batch ? `${batch.batch_code} - ${batch.batch_name}` : 'Unknown Batch';
+
+                                                                return (
+                                                                    <optgroup key={batchId} label={batchLabel}>
+                                                                        {students.map(cs => (
+                                                                            <option key={cs.student_id} value={cs.center_student_id?.toString().trim()}>
+                                                                                {cs.center_student_id} - {cs.student_name}
+                                                                            </option>
+                                                                        ))}
+                                                                    </optgroup>
+                                                                );
+                                                            });
+                                                        } else {
+                                                            // Single batch or toggle OFF - no grouping needed
+                                                            return filteredStudents.map(cs => (
+                                                                <option key={cs.student_id} value={cs.center_student_id?.toString().trim()}>
+                                                                    {cs.center_student_id} - {cs.student_name}
+                                                                </option>
+                                                            ));
+                                                        }
+                                                    })()}
+                                                </select>
+                                            </td>
+                                            {student.grades.map((grade, gradeIndex) => {
+                                                const isMissing = !grade || grade.trim() === '';
+                                                return (
+                                                <td key={gradeIndex} className={`px-3 py-3 text-center ${isMissing ? 'bg-red-50' : ''}`}>
+                                                    <select
+                                                        value={grade}
+                                                        onChange={(e) => updateGrade(studentIndex, gradeIndex, e.target.value)}
+                                                        className={`px-2 py-1 border rounded focus:ring-2 focus:ring-brand-teal text-center ${
+                                                            isMissing ? 'border-red-500 bg-red-50 text-red-900' : 'border-gray-300'
+                                                        }`}
+                                                    >
+                                                        <option value="">-</option>
+                                                        <option value="A">A</option>
+                                                        <option value="B">B</option>
+                                                        <option value="C">C</option>
+                                                        <option value="X">X</option>
+                                                    </select>
+                                                </td>
+                                                );
+                                            })}
+                                            <td className="px-3 py-3 text-center">
+                                                <button
+                                                    onClick={() => deleteStudent(studentIndex)}
+                                                    className="text-red-600 hover:text-red-800 font-medium text-sm"
+                                                >
+                                                    Delete
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div className="mt-6 flex gap-4 flex-wrap">
+                            <button
+                                onClick={addStudent}
+                                className="px-6 py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition"
+                            >
+                                + Add Student
+                            </button>
+                            <button
+                                onClick={handleSaveDraft}
+                                className="px-6 py-3 bg-gray-600 text-white rounded-lg font-medium hover:bg-gray-700 transition"
+                            >
+                                Save Draft
+                            </button>
+                            <button
+                                onClick={handleStartOver}
+                                className="px-6 py-3 bg-gray-200 text-gray-800 rounded-lg font-medium hover:bg-gray-300 transition"
+                            >
+                                Start Over
+                            </button>
+                            <button
+                                onClick={generateReports}
+                                disabled={
+                                    isProcessing ||
+                                    !selectedBatchId ||
+                                    students.length === 0 ||
+                                    students.some(s => !s.name.trim()) ||
+                                    (matchedStudentMap.length > 0 && matchedStudentMap.some(m => m === null)) ||
+                                    students.some(s => s.grades.some(g => !g || g.trim() === ''))
+                                }
+                                className="ml-auto px-8 py-3 bg-brand-teal text-white rounded-lg font-medium hover:bg-brand-teal-dark disabled:bg-gray-400 disabled:cursor-not-allowed transition"
+                                title={
+                                    students.some(s => s.grades.some(g => !g || g.trim() === ''))
+                                        ? 'All grades must be filled before generating reports'
+                                        : matchedStudentMap.length > 0 && matchedStudentMap.some(m => m === null)
+                                        ? 'All students must be matched before generating reports'
+                                        : ''
+                                }
+                            >
+                                {isProcessing ? 'Generating...' : 'Generate Reports'}
+                            </button>
+                        </div>
+
+                        {!isProcessing && students.some(s => s.grades.some(g => !g || g.trim() === '')) && (
+                            <p className="mt-3 text-sm text-red-700 bg-red-50 border border-red-200 px-4 py-2 rounded-lg">
+                                <strong>⚠️ Missing Grades Detected:</strong> Some students have missing grades (highlighted in red). All grades must be filled before generating reports.
+                            </p>
+                        )}
+
+                        {!isProcessing && selectedBatchId && matchedStudentMap.length > 0 && matchedStudentMap.some(m => m === null) && (
+                            <p className="mt-3 text-sm text-amber-700 bg-amber-50 border border-amber-200 px-4 py-2 rounded-lg">
+                                All students must be matched to database records before generating reports. Use the Center Student ID dropdown to match unmatched students, or use + Add Student and pick them from the dropdown.
+                            </p>
+                        )}
+
+                        {isProcessing && (
+                            <div className="mt-6 text-center">
+                                <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-brand-teal border-t-transparent"></div>
+                                <p className="mt-2 text-gray-600">
+                                    {reportProgress.completed > 0
+                                        ? `${reportProgress.completed} of ${reportProgress.total} reports done...`
+                                        : 'Creating personalised reports...'}
+                                </p>
+                                <p className="mt-1 text-xs text-gray-400">{formatElapsed(reportElapsed)}</p>
+                                {wakeLockActive && (
+                                    <p className="mt-2 text-xs text-green-600 flex items-center justify-center gap-1">
+                                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                        </svg>
+                                        Screen will stay on
+                                    </p>
+                                )}
+                                {!wakeLockActive && reportProgress.total > 0 && (
+                                    <p className="mt-2 text-xs text-amber-600">
+                                        Keep screen on to avoid interruption
+                                    </p>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        }
+
+        // =====================================================
+        // REPORTS SCREEN SUB-COMPONENT
+        // =====================================================
+        function ReportsScreen({
+            error, reports,
+            downloadAllReports, saveAllReportEdits, isSavingReports,
+            sendAllViaWhatsApp, sendViaWhatsApp, downloadReport,
+            updateReportText, loadStudentHistory, studentHistory,
+            handleProcessAnother, setCurrentScreen
+        }) {
+            return (
+                <div className="min-h-screen bg-gray-50 p-4">
+                    <div className="max-w-4xl mx-auto pt-4">
+                        <div className="mb-6">
+                            <h2 className="text-2xl font-bold text-gray-800 mb-2">Generated Reports</h2>
+                            <p className="text-gray-600">Review, edit, and send individual student reports</p>
+                        </div>
+
+                        {error && (
+                            <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg mb-6">
+                                {error}
+                            </div>
+                        )}
+
+                        <div className="mb-4 flex flex-wrap gap-3">
+                            <button
+                                onClick={downloadAllReports}
+                                className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition"
+                            >
+                                Download All Reports
+                            </button>
+                            <button
+                                onClick={saveAllReportEdits}
+                                disabled={isSavingReports}
+                                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 transition"
+                            >
+                                {isSavingReports ? 'Saving...' : 'Save All Changes'}
+                            </button>
+                            <button
+                                onClick={sendAllViaWhatsApp}
+                                className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition flex items-center gap-2"
+                            >
+                                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+                                </svg>
+                                Send All via WhatsApp
+                            </button>
+                        </div>
+
+                        <div className="space-y-4">
+                            {reports.map((report, index) => (
+                                <div key={index} className={`bg-white rounded-lg shadow p-6 ${!report.studentId ? 'border-l-4 border-amber-400' : ''}`}>
+                                    <div className="flex justify-between items-start mb-3">
+                                        <div>
+                                            <div className="flex items-center gap-2">
+                                                <h3 className="text-xl font-semibold text-gray-800">{report.studentName}</h3>
+                                                {report.sentAt && (
+                                                    <span className="px-2 py-0.5 text-xs bg-green-100 text-green-700 rounded">Sent</span>
+                                                )}
+                                                {!report.studentId && (
+                                                    <span className="px-2 py-0.5 text-xs bg-amber-100 text-amber-700 rounded" title="This student was not found in the database">Not in DB</span>
+                                                )}
+                                            </div>
+                                            {report.parentName && (
+                                                <p className="text-sm text-gray-600">Parent: {report.parentName}</p>
+                                            )}
+                                            {report.parentPhone && (
+                                                <p className="text-sm text-gray-500">Phone: {report.parentPhone}</p>
+                                            )}
+                                            {!report.studentId && (
+                                                <p className="text-xs text-amber-600 mt-1">Report won't be saved - student not found in database</p>
+                                            )}
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={() => sendViaWhatsApp(report, index)}
+                                                className="px-3 py-2 bg-green-500 text-white text-sm rounded hover:bg-green-600 transition flex items-center gap-1"
+                                                title={report.parentPhone ? `Send to ${report.parentPhone}` : 'No phone number - will open WhatsApp to select contact'}
+                                            >
+                                                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                                                    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+                                                </svg>
+                                                {report.sentAt ? 'Resend' : 'WhatsApp'}
+                                            </button>
+                                            <button
+                                                onClick={() => downloadReport(report.studentName, report.report)}
+                                                className="px-3 py-2 bg-brand-teal text-white text-sm rounded hover:bg-brand-teal-dark transition"
+                                            >
+                                                Download
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <textarea
+                                        value={report.report}
+                                        onChange={(e) => updateReportText(index, e.target.value)}
+                                        className="w-full h-48 p-3 border border-gray-300 rounded-lg text-gray-700 leading-relaxed focus:ring-2 focus:ring-brand-teal focus:border-transparent resize-y"
+                                        placeholder="Report content..."
+                                    />
+                                    <div className="mt-2 flex items-center justify-between">
+                                        <p className="text-xs text-gray-500">You can edit the report text above before sending</p>
+                                        {report.studentId && (
+                                            <button
+                                                onClick={() => loadStudentHistory(report.studentId)}
+                                                className="text-xs text-brand-teal hover:underline"
+                                            >
+                                                {studentHistory[report.studentId] ? 'Hide History' : 'View History'}
+                                            </button>
+                                        )}
+                                    </div>
+                                    {report.studentId && studentHistory[report.studentId] && (
+                                        <div className="mt-3 border-t border-gray-200 pt-3">
+                                            <h4 className="text-sm font-semibold text-gray-700 mb-2">Past Reports ({studentHistory[report.studentId].length})</h4>
+                                            {studentHistory[report.studentId].length === 0 ? (
+                                                <p className="text-xs text-gray-500">No previous reports found for this student.</p>
+                                            ) : (
+                                                <div className="space-y-2 max-h-60 overflow-y-auto">
+                                                    {studentHistory[report.studentId].map((hist) => (
+                                                        <div key={hist.report_id} className="bg-gray-50 rounded p-3 text-sm">
+                                                            <div className="flex items-center gap-2 mb-1">
+                                                                <span className="font-medium text-gray-700">
+                                                                    {new Date(hist.sessions?.session_date || hist.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                                                </span>
+                                                                {hist.sessions?.batches?.batch_name && (
+                                                                    <span className="text-xs bg-teal-50 text-brand-teal px-2 py-0.5 rounded">
+                                                                        {hist.sessions.batches.batch_name}
+                                                                    </span>
+                                                                )}
+                                                                {hist.sent_at && (
+                                                                    <span className="text-xs bg-green-50 text-green-700 px-2 py-0.5 rounded">Sent</span>
+                                                                )}
+                                                            </div>
+                                                            <p className="text-gray-600 text-xs whitespace-pre-line line-clamp-3">{hist.report_body}</p>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+
+                        <div className="mt-8 flex gap-4">
+                            <button
+                                onClick={handleProcessAnother}
+                                className="px-6 py-3 bg-brand-teal text-white rounded-lg font-medium hover:bg-brand-teal-dark transition"
+                            >
+                                Process Another Gradesheet
+                            </button>
+                            <button
+                                onClick={() => setCurrentScreen('edit')}
+                                className="px-6 py-3 bg-gray-200 text-gray-800 rounded-lg font-medium hover:bg-gray-300 transition"
+                            >
+                                Back to Edit
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // =====================================================
         // MAIN SCANNER COMPONENT
         // =====================================================
         function Scanner({ user, initialSession, isSiteAdmin }) {
@@ -1738,6 +2376,57 @@
                 setStudents(updated);
             };
 
+            // Handle "Start Over" — clean up draft session and reset state
+            const handleStartOver = async () => {
+                if (currentSessionId) {
+                    try {
+                        const { count } = await supabase
+                            .from('reports')
+                            .select('*', { count: 'exact', head: true })
+                            .eq('session_id', currentSessionId);
+                        if (count === 0) {
+                            await supabase
+                                .from('sessions')
+                                .delete()
+                                .eq('session_id', currentSessionId)
+                                .eq('status', 'draft');
+                        }
+                    } catch (err) {
+                        console.warn('Failed to clean up draft session:', err);
+                    }
+                }
+                setCurrentScreen('upload');
+                setStudents([]);
+                setActivities([]);
+                setUploadedImage(null);
+                setCurrentSessionId(null);
+                setMatchedStudentMap([]);
+                setStudentHistory({});
+            };
+
+            // Handle "Save Draft" — validate and save current session
+            const handleSaveDraft = async () => {
+                if (!selectedBatchId) {
+                    setError('Please select a batch before saving.');
+                    return;
+                }
+                await saveSession({ activities, students }, uploadedImage);
+            };
+
+            // Handle "Process Another Gradesheet" — reset all state
+            const handleProcessAnother = () => {
+                setCurrentScreen('upload');
+                setStudents([]);
+                setActivities([]);
+                setReports([]);
+                setUploadedImage(null);
+                setCurrentSessionId(null);
+                setMatchedStudentMap([]);
+                setStudentHistory({});
+                setIsProcessing(false);
+                setProcessingStatus('');
+            };
+
             // Save reports to database (only those with valid student_id)
             const saveReports = async (sessionId, generatedReports) => {
                 if (!sessionId) return;
@@ -2398,655 +3087,76 @@
             // Upload Screen
             if (currentScreen === 'upload') {
                 return (
-                    <div className="min-h-screen bg-gradient-to-br from-brand-cream to-white p-4">
-                        <div className="max-w-2xl mx-auto pt-8">
-                            <h2 className="text-3xl font-bold text-gray-800 mb-2 text-center">Scan Gradesheet</h2>
-                            <p className="text-gray-600 mb-8 text-center">Upload or photograph a gradesheet to extract data</p>
-
-                            {error && (
-                                <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg mb-6">
-                                    {error}
-                                </div>
-                            )}
-
-                            <div className="bg-white rounded-lg shadow-lg p-8">
-                                <button 
-                                    onClick={() => setShowUploadOptions(true)}
-                                    disabled={isProcessing}
-                                    className="flex flex-col items-center justify-center w-full h-64 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                                        <svg className="w-16 h-16 mb-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                                        </svg>
-                                        <p className="mb-2 text-lg font-medium text-gray-700">
-                                            {isProcessing ? 'Processing...' : 'Upload Gradesheet'}
-                                        </p>
-                                        <p className="text-sm text-gray-500">
-                                            {isProcessing ? '' : 'Click to choose camera or upload'}
-                                        </p>
-                                    </div>
-                                </button>
-
-                                {isProcessing && (
-                                    <div className="mt-6 text-center">
-                                        <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-brand-teal border-t-transparent"></div>
-                                        <p className="mt-2 text-gray-600">{processingStatus || 'Processing...'}</p>
-                                        <p className="mt-1 text-xs text-gray-400">{formatElapsed(uploadElapsed)}</p>
-                                    </div>
-                                )}
-                            </div>
-                            
-                            {/* Upload Options Modal */}
-                            {showUploadOptions && (
-                                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-                                    <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
-                                        <h3 className="text-xl font-bold text-gray-800 mb-4">Choose Image Source</h3>
-
-                                        <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4">
-                                            <p className="text-sm text-green-800 font-medium">✓ All formats supported</p>
-                                            <p className="text-xs text-green-700">HEIC, JPEG, PNG - images are automatically optimized</p>
-                                        </div>
-
-                                        <div className="space-y-3">
-                                            <label className="flex items-center justify-center w-full p-4 border-2 border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition">
-                                                <svg className="w-6 h-6 mr-3 text-brand-teal" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                                                </svg>
-                                                <span className="font-medium text-gray-700">Take Photo</span>
-                                                <input
-                                                    type="file"
-                                                    accept="image/*"
-                                                    capture="environment"
-                                                    onChange={(e) => {
-                                                        setShowUploadOptions(false);
-                                                        handleImageUpload(e);
-                                                    }}
-                                                    className="hidden"
-                                                />
-                                            </label>
-
-                                            <label className="flex items-center justify-center w-full p-4 border-2 border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition">
-                                                <svg className="w-6 h-6 mr-3 text-brand-teal" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                                </svg>
-                                                <span className="font-medium text-gray-700">Upload from Gallery</span>
-                                                <input
-                                                    type="file"
-                                                    accept="image/*"
-                                                    onChange={(e) => {
-                                                        setShowUploadOptions(false);
-                                                        handleImageUpload(e);
-                                                    }}
-                                                    className="hidden"
-                                                />
-                                            </label>
-                                        </div>
-
-                                        <button
-                                            onClick={() => setShowUploadOptions(false)}
-                                            className="mt-4 w-full px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
-                                        >
-                                            Cancel
-                                        </button>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    </div>
+                    <UploadScreen
+                        error={error}
+                        isProcessing={isProcessing}
+                        processingStatus={processingStatus}
+                        uploadElapsed={uploadElapsed}
+                        showUploadOptions={showUploadOptions}
+                        setShowUploadOptions={setShowUploadOptions}
+                        handleImageUpload={handleImageUpload}
+                    />
                 );
             }
 
             // Edit Grid Screen
             if (currentScreen === 'edit') {
                 return (
-                    <div className="min-h-screen bg-gray-50 p-4">
-                        <div className="max-w-7xl mx-auto pt-4">
-                            <div className="mb-6 flex justify-between items-center">
-                                <div>
-                                    <h2 className="text-2xl font-bold text-gray-800 mb-1">Review & Edit Data</h2>
-                                    <p className="text-gray-600">Make any necessary corrections before generating reports</p>
-                                </div>
-                                {saveStatus && (
-                                    <span className={`px-3 py-1 rounded text-sm ${
-                                        saveStatus === 'Saved!' ? 'bg-green-100 text-green-700' :
-                                        saveStatus === 'Save failed' ? 'bg-red-100 text-red-700' :
-                                        'bg-gray-100 text-gray-700'
-                                    }`}>
-                                        {saveStatus}
-                                    </span>
-                                )}
-                            </div>
-
-                            {ocrWarnings && ocrWarnings.length > 0 && (
-                                <div className="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-                                    <h3 className="text-sm font-semibold text-amber-800 mb-2">⚠️ Activity Mapping Warnings</h3>
-                                    <ul className="text-sm text-amber-700 space-y-1">
-                                        {ocrWarnings.map((warning, idx) => (
-                                            <li key={idx}>• {warning}</li>
-                                        ))}
-                                    </ul>
-                                </div>
-                            )}
-
-                            {extractedLevel && extractedClassNumber && (
-                                <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                                    <p className="text-sm text-blue-800">
-                                        📚 Detected: <span className="font-semibold">Level {extractedLevel}, Class {extractedClassNumber}</span>
-                                        {activityMapping && activityMapping.length > 0 && (
-                                            <span className="ml-2 text-green-700">✓ Using predefined activity sequence</span>
-                                        )}
-                                    </p>
-                                </div>
-                            )}
-
-                            <div className="mb-4">
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Batch</label>
-                                <select
-                                    value={selectedBatchId || ''}
-                                    onChange={(e) => handleBatchChange(e.target.value)}
-                                    className="w-full max-w-xs px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-teal"
-                                >
-                                    <option value="">-- Select a batch --</option>
-                                    {batches.map(c => (
-                                        <option key={c.batch_id} value={c.batch_id}>
-                                            {c.batch_code ? `${c.batch_code} — ${c.batch_name}` : c.batch_name}
-                                        </option>
-                                    ))}
-                                </select>
-                                {!selectedBatchId && (
-                                    <p className="mt-1 text-sm text-amber-600">
-                                        Please select a batch so students can be matched to database records.
-                                    </p>
-                                )}
-                                {isMatching && (
-                                    <div className="mt-1 flex items-center gap-2">
-                                        <div className="inline-block animate-spin rounded-full h-4 w-4 border-2 border-brand-teal border-t-transparent"></div>
-                                        <p className="text-sm text-brand-teal">Verifying students...</p>
-                                    </div>
-                                )}
-                                {!isMatching && selectedBatchId && matchedStudentMap.length > 0 && (
-                                    <p className="mt-1 text-sm text-green-700">
-                                        {matchedStudentMap.filter(m => m !== null).length} of {students.length} students matched
-                                    </p>
-                                )}
-                            </div>
-
-                            {error && (
-                                <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg mb-6">
-                                    {error}
-                                </div>
-                            )}
-
-                            <div className="mb-3 flex items-center gap-4 text-xs text-gray-500">
-                                <span className="font-semibold text-gray-600">Grade key:</span>
-                                <span><strong>A</strong> = Excellent</span>
-                                <span><strong>B</strong> = Good</span>
-                                <span><strong>C</strong> = Needs Practice</span>
-                                <span><strong>X</strong> = Absent</span>
-                            </div>
-
-                            {selectedBatchId && (
-                                <div className="mb-3 flex items-center">
-                                    <label className="flex items-center text-sm text-gray-600 cursor-pointer">
-                                        <input
-                                            type="checkbox"
-                                            checked={showAllBatches}
-                                            onChange={(e) => setShowAllBatches(e.target.checked)}
-                                            className="mr-2 h-4 w-4 text-brand-teal focus:ring-brand-teal rounded"
-                                        />
-                                        Show students from other batches
-                                    </label>
-                                </div>
-                            )}
-
-                            <div className={`bg-white rounded-lg shadow overflow-x-auto ${isMatching ? 'relative' : ''}`}>
-                                {isMatching && (
-                                    <div className="absolute inset-0 bg-gray-100 bg-opacity-60 z-10 rounded-lg"></div>
-                                )}
-                                <table className="border-collapse" style={{ tableLayout: 'fixed', width: colWidths.name + colWidths.centerId + activities.length * 100 + 80 }}>
-                                    <colgroup>
-                                        <col style={{ width: colWidths.name }} />
-                                        <col style={{ width: colWidths.centerId }} />
-                                        {activities.map((_, i) => (
-                                            <col key={i} style={{ width: 100 }} />
-                                        ))}
-                                        <col style={{ width: 80 }} />
-                                    </colgroup>
-                                    <thead className="bg-gray-100 border-b-2 border-gray-300">
-                                        <tr>
-                                            <th className="px-3 py-3 text-left text-sm font-semibold text-gray-700 border-r border-gray-300 sticky left-0 bg-gray-100" style={{ position: 'relative' }}>
-                                                Student Name
-                                                <div onMouseDown={(e) => startResize('name', e)} style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 6, cursor: 'col-resize', zIndex: 1 }} onMouseOver={(e) => e.currentTarget.style.background='#cbd5e1'} onMouseOut={(e) => e.currentTarget.style.background='transparent'} />
-                                            </th>
-                                            <th className="px-3 py-3 text-left text-sm font-semibold text-gray-700 border-r border-gray-300 bg-gray-100" style={{ position: 'relative' }}>
-                                                Center Student ID
-                                                <div onMouseDown={(e) => startResize('centerId', e)} style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 6, cursor: 'col-resize', zIndex: 1 }} onMouseOver={(e) => e.currentTarget.style.background='#cbd5e1'} onMouseOut={(e) => e.currentTarget.style.background='transparent'} />
-                                            </th>
-                                            {activities.map((activity, index) => (
-                                                <th key={index} className="px-3 py-3 text-center text-sm font-semibold text-gray-700">
-                                                    <input
-                                                        type="text"
-                                                        value={activity}
-                                                        onChange={(e) => updateActivityName(index, e.target.value)}
-                                                        className="w-full px-2 py-1 border border-gray-300 rounded text-center focus:ring-2 focus:ring-brand-teal"
-                                                    />
-                                                    <button
-                                                        onClick={() => deleteActivity(index)}
-                                                        className="mt-1 text-xs text-red-600 hover:text-red-800"
-                                                    >
-                                                        Delete
-                                                    </button>
-                                                </th>
-                                            ))}
-                                            <th className="px-3 py-3 text-center text-sm font-semibold text-gray-700">
-                                                <button
-                                                    onClick={addActivity}
-                                                    className="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700"
-                                                >
-                                                    + Activity
-                                                </button>
-                                            </th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {students.map((student, studentIndex) => {
-                                            const matched = matchedStudentMap[studentIndex];
-                                            const isVisitingStudent = matched && selectedBatchId && matched.batch_id && matched.batch_id !== selectedBatchId;
-                                            return (
-                                            <tr key={studentIndex} className={`border-b hover:bg-gray-50 ${matched ? '' : selectedBatchId ? 'bg-amber-50' : ''}`}>
-                                                <td className={`px-3 py-3 border-r border-gray-300 sticky left-0 ${matched ? 'bg-white' : selectedBatchId ? 'bg-amber-50' : 'bg-white'} ${isVisitingStudent ? 'border-l-4 border-l-blue-500' : ''}`}>
-                                                    <div className="flex items-center gap-1">
-                                                        {selectedBatchId && matchedStudentMap.length > 0 && (
-                                                            <span title={matched ? `Matched: ${matched.student_name}` : 'Not found in database'} className="flex-shrink-0">
-                                                                {matched
-                                                                    ? <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"/></svg>
-                                                                    : <svg className="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01M12 3a9 9 0 100 18 9 9 0 000-18z"/></svg>
-                                                                }
-                                                            </span>
-                                                        )}
-                                                        <span className="w-full px-2 py-1 text-gray-800">{student.name || '—'}</span>
-                                                        {isVisitingStudent && (
-                                                            <span className="ml-1 px-1.5 py-0.5 text-xs bg-blue-100 text-blue-700 rounded whitespace-nowrap">
-                                                                Visiting
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                </td>
-                                                <td className={`px-3 py-3 border-r border-gray-300 ${matched ? 'bg-white' : selectedBatchId ? 'bg-amber-50' : 'bg-white'}`}>
-                                                    <select
-                                                        value={student.center_student_id || ''}
-                                                        onChange={(e) => updateStudentCenterId(studentIndex, e.target.value)}
-                                                        className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-brand-teal"
-                                                    >
-                                                        <option value="">-- Select Student --</option>
-                                                        {(() => {
-                                                            const usedIds = students
-                                                                .filter((_, i) => i !== studentIndex)
-                                                                .map(s => s.center_student_id?.toString().trim())
-                                                                .filter(Boolean);
-
-                                                            // Filter students based on toggle state
-                                                            const filteredStudents = centerStudentsList
-                                                                .filter(cs => {
-                                                                    // Filter out already-used IDs
-                                                                    if (usedIds.includes(cs.center_student_id?.toString().trim())) return false;
-
-                                                                    // If toggle is OFF, show only selected batch
-                                                                    if (!showAllBatches) return cs.batch_id === selectedBatchId;
-
-                                                                    // If toggle is ON, show all batches
-                                                                    return true;
-                                                                })
-                                                                .sort((a, b) => (a.center_student_id || '').localeCompare(b.center_student_id || ''));
-
-                                                            // Group students by batch
-                                                            const studentsByBatch = filteredStudents.reduce((acc, cs) => {
-                                                                const batchId = cs.batch_id;
-                                                                if (!acc[batchId]) acc[batchId] = [];
-                                                                acc[batchId].push(cs);
-                                                                return acc;
-                                                            }, {});
-
-                                                            // Render with optgroup if multiple batches and toggle is ON
-                                                            if (showAllBatches && Object.keys(studentsByBatch).length > 1) {
-                                                                return Object.entries(studentsByBatch).map(([batchId, students]) => {
-                                                                    const batch = batches.find(b => b.batch_id === batchId);
-                                                                    const batchLabel = batch ? `${batch.batch_code} - ${batch.batch_name}` : 'Unknown Batch';
-
-                                                                    return (
-                                                                        <optgroup key={batchId} label={batchLabel}>
-                                                                            {students.map(cs => (
-                                                                                <option key={cs.student_id} value={cs.center_student_id?.toString().trim()}>
-                                                                                    {cs.center_student_id} - {cs.student_name}
-                                                                                </option>
-                                                                            ))}
-                                                                        </optgroup>
-                                                                    );
-                                                                });
-                                                            } else {
-                                                                // Single batch or toggle OFF - no grouping needed
-                                                                return filteredStudents.map(cs => (
-                                                                    <option key={cs.student_id} value={cs.center_student_id?.toString().trim()}>
-                                                                        {cs.center_student_id} - {cs.student_name}
-                                                                    </option>
-                                                                ));
-                                                            }
-                                                        })()}
-                                                    </select>
-                                                </td>
-                                                {student.grades.map((grade, gradeIndex) => {
-                                                    const isMissing = !grade || grade.trim() === '';
-                                                    return (
-                                                    <td key={gradeIndex} className={`px-3 py-3 text-center ${isMissing ? 'bg-red-50' : ''}`}>
-                                                        <select
-                                                            value={grade}
-                                                            onChange={(e) => updateGrade(studentIndex, gradeIndex, e.target.value)}
-                                                            className={`px-2 py-1 border rounded focus:ring-2 focus:ring-brand-teal text-center ${
-                                                                isMissing ? 'border-red-500 bg-red-50 text-red-900' : 'border-gray-300'
-                                                            }`}
-                                                        >
-                                                            <option value="">-</option>
-                                                            <option value="A">A</option>
-                                                            <option value="B">B</option>
-                                                            <option value="C">C</option>
-                                                            <option value="X">X</option>
-                                                        </select>
-                                                    </td>
-                                                    );
-                                                })}
-                                                <td className="px-3 py-3 text-center">
-                                                    <button
-                                                        onClick={() => deleteStudent(studentIndex)}
-                                                        className="text-red-600 hover:text-red-800 font-medium text-sm"
-                                                    >
-                                                        Delete
-                                                    </button>
-                                                </td>
-                                            </tr>
-                                        );
-                                        })}
-                                    </tbody>
-                                </table>
-                            </div>
-
-                            <div className="mt-6 flex gap-4 flex-wrap">
-                                <button
-                                    onClick={addStudent}
-                                    className="px-6 py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition"
-                                >
-                                    + Add Student
-                                </button>
-                                <button
-                                    onClick={async () => {
-                                        if (!selectedBatchId) {
-                                            setError('Please select a batch before saving.');
-                                            return;
-                                        }
-                                        await saveSession({ activities, students }, uploadedImage);
-                                    }}
-                                    className="px-6 py-3 bg-gray-600 text-white rounded-lg font-medium hover:bg-gray-700 transition"
-                                >
-                                    Save Draft
-                                </button>
-                                <button
-                                    onClick={async () => {
-                                        // Delete draft session from DB if it exists and has no reports
-                                        if (currentSessionId) {
-                                            try {
-                                                const { count } = await supabase
-                                                    .from('reports')
-                                                    .select('*', { count: 'exact', head: true })
-                                                    .eq('session_id', currentSessionId);
-                                                if (count === 0) {
-                                                    await supabase
-                                                        .from('sessions')
-                                                        .delete()
-                                                        .eq('session_id', currentSessionId)
-                                                        .eq('status', 'draft');
-                                                }
-                                            } catch (err) {
-                                                console.warn('Failed to clean up draft session:', err);
-                                            }
-                                        }
-                                        setCurrentScreen('upload');
-                                        setStudents([]);
-                                        setActivities([]);
-                                        setUploadedImage(null);
-                                        setCurrentSessionId(null);
-                                        setMatchedStudentMap([]);
-                                        setStudentHistory({});
-                                    }}
-                                    className="px-6 py-3 bg-gray-200 text-gray-800 rounded-lg font-medium hover:bg-gray-300 transition"
-                                >
-                                    Start Over
-                                </button>
-                                <button
-                                    onClick={generateReports}
-                                    disabled={
-                                        isProcessing ||
-                                        !selectedBatchId ||
-                                        students.length === 0 ||
-                                        students.some(s => !s.name.trim()) ||
-                                        (matchedStudentMap.length > 0 && matchedStudentMap.some(m => m === null)) ||
-                                        students.some(s => s.grades.some(g => !g || g.trim() === ''))
-                                    }
-                                    className="ml-auto px-8 py-3 bg-brand-teal text-white rounded-lg font-medium hover:bg-brand-teal-dark disabled:bg-gray-400 disabled:cursor-not-allowed transition"
-                                    title={
-                                        students.some(s => s.grades.some(g => !g || g.trim() === ''))
-                                            ? 'All grades must be filled before generating reports'
-                                            : matchedStudentMap.length > 0 && matchedStudentMap.some(m => m === null)
-                                            ? 'All students must be matched before generating reports'
-                                            : ''
-                                    }
-                                >
-                                    {isProcessing ? 'Generating...' : 'Generate Reports'}
-                                </button>
-                            </div>
-
-                            {!isProcessing && students.some(s => s.grades.some(g => !g || g.trim() === '')) && (
-                                <p className="mt-3 text-sm text-red-700 bg-red-50 border border-red-200 px-4 py-2 rounded-lg">
-                                    <strong>⚠️ Missing Grades Detected:</strong> Some students have missing grades (highlighted in red). All grades must be filled before generating reports.
-                                </p>
-                            )}
-
-                            {!isProcessing && selectedBatchId && matchedStudentMap.length > 0 && matchedStudentMap.some(m => m === null) && (
-                                <p className="mt-3 text-sm text-amber-700 bg-amber-50 border border-amber-200 px-4 py-2 rounded-lg">
-                                    All students must be matched to database records before generating reports. Use the Center Student ID dropdown to match unmatched students, or use + Add Student and pick them from the dropdown.
-                                </p>
-                            )}
-
-                            {isProcessing && (
-                                <div className="mt-6 text-center">
-                                    <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-brand-teal border-t-transparent"></div>
-                                    <p className="mt-2 text-gray-600">
-                                        {reportProgress.completed > 0
-                                            ? `${reportProgress.completed} of ${reportProgress.total} reports done...`
-                                            : 'Creating personalised reports...'}
-                                    </p>
-                                    <p className="mt-1 text-xs text-gray-400">{formatElapsed(reportElapsed)}</p>
-                                    {wakeLockActive && (
-                                        <p className="mt-2 text-xs text-green-600 flex items-center justify-center gap-1">
-                                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                                            </svg>
-                                            Screen will stay on
-                                        </p>
-                                    )}
-                                    {!wakeLockActive && reportProgress.total > 0 && (
-                                        <p className="mt-2 text-xs text-amber-600">
-                                            Keep screen on to avoid interruption
-                                        </p>
-                                    )}
-                                </div>
-                            )}
-                        </div>
-                    </div>
+                    <EditScreen
+                        error={error}
+                        saveStatus={saveStatus}
+                        ocrWarnings={ocrWarnings}
+                        extractedLevel={extractedLevel}
+                        extractedClassNumber={extractedClassNumber}
+                        activityMapping={activityMapping}
+                        selectedBatchId={selectedBatchId}
+                        batches={batches}
+                        handleBatchChange={handleBatchChange}
+                        isMatching={isMatching}
+                        matchedStudentMap={matchedStudentMap}
+                        students={students}
+                        activities={activities}
+                        colWidths={colWidths}
+                        startResize={startResize}
+                        centerStudentsList={centerStudentsList}
+                        showAllBatches={showAllBatches}
+                        setShowAllBatches={setShowAllBatches}
+                        updateActivityName={updateActivityName}
+                        deleteActivity={deleteActivity}
+                        addActivity={addActivity}
+                        updateStudentCenterId={updateStudentCenterId}
+                        updateGrade={updateGrade}
+                        deleteStudent={deleteStudent}
+                        addStudent={addStudent}
+                        handleSaveDraft={handleSaveDraft}
+                        handleStartOver={handleStartOver}
+                        generateReports={generateReports}
+                        isProcessing={isProcessing}
+                        reportProgress={reportProgress}
+                        reportElapsed={reportElapsed}
+                        wakeLockActive={wakeLockActive}
+                    />
                 );
             }
 
             // Reports Screen
             if (currentScreen === 'reports') {
                 return (
-                    <div className="min-h-screen bg-gray-50 p-4">
-                        <div className="max-w-4xl mx-auto pt-4">
-                            <div className="mb-6">
-                                <h2 className="text-2xl font-bold text-gray-800 mb-2">Generated Reports</h2>
-                                <p className="text-gray-600">Review, edit, and send individual student reports</p>
-                            </div>
-
-                            {error && (
-                                <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg mb-6">
-                                    {error}
-                                </div>
-                            )}
-
-                            <div className="mb-4 flex flex-wrap gap-3">
-                                <button
-                                    onClick={downloadAllReports}
-                                    className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition"
-                                >
-                                    Download All Reports
-                                </button>
-                                <button
-                                    onClick={saveAllReportEdits}
-                                    disabled={isSavingReports}
-                                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 transition"
-                                >
-                                    {isSavingReports ? 'Saving...' : 'Save All Changes'}
-                                </button>
-                                <button
-                                    onClick={sendAllViaWhatsApp}
-                                    className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition flex items-center gap-2"
-                                >
-                                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                                        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
-                                    </svg>
-                                    Send All via WhatsApp
-                                </button>
-                            </div>
-
-                            <div className="space-y-4">
-                                {reports.map((report, index) => (
-                                    <div key={index} className={`bg-white rounded-lg shadow p-6 ${!report.studentId ? 'border-l-4 border-amber-400' : ''}`}>
-                                        <div className="flex justify-between items-start mb-3">
-                                            <div>
-                                                <div className="flex items-center gap-2">
-                                                    <h3 className="text-xl font-semibold text-gray-800">{report.studentName}</h3>
-                                                    {report.sentAt && (
-                                                        <span className="px-2 py-0.5 text-xs bg-green-100 text-green-700 rounded">Sent</span>
-                                                    )}
-                                                    {!report.studentId && (
-                                                        <span className="px-2 py-0.5 text-xs bg-amber-100 text-amber-700 rounded" title="This student was not found in the database">Not in DB</span>
-                                                    )}
-                                                </div>
-                                                {report.parentName && (
-                                                    <p className="text-sm text-gray-600">Parent: {report.parentName}</p>
-                                                )}
-                                                {report.parentPhone && (
-                                                    <p className="text-sm text-gray-500">Phone: {report.parentPhone}</p>
-                                                )}
-                                                {!report.studentId && (
-                                                    <p className="text-xs text-amber-600 mt-1">Report won't be saved - student not found in database</p>
-                                                )}
-                                            </div>
-                                            <div className="flex gap-2">
-                                                <button
-                                                    onClick={() => sendViaWhatsApp(report, index)}
-                                                    className="px-3 py-2 bg-green-500 text-white text-sm rounded hover:bg-green-600 transition flex items-center gap-1"
-                                                    title={report.parentPhone ? `Send to ${report.parentPhone}` : 'No phone number - will open WhatsApp to select contact'}
-                                                >
-                                                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                                                        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
-                                                    </svg>
-                                                    {report.sentAt ? 'Resend' : 'WhatsApp'}
-                                                </button>
-                                                <button
-                                                    onClick={() => downloadReport(report.studentName, report.report)}
-                                                    className="px-3 py-2 bg-brand-teal text-white text-sm rounded hover:bg-brand-teal-dark transition"
-                                                >
-                                                    Download
-                                                </button>
-                                            </div>
-                                        </div>
-                                        <textarea
-                                            value={report.report}
-                                            onChange={(e) => updateReportText(index, e.target.value)}
-                                            className="w-full h-48 p-3 border border-gray-300 rounded-lg text-gray-700 leading-relaxed focus:ring-2 focus:ring-brand-teal focus:border-transparent resize-y"
-                                            placeholder="Report content..."
-                                        />
-                                        <div className="mt-2 flex items-center justify-between">
-                                            <p className="text-xs text-gray-500">You can edit the report text above before sending</p>
-                                            {report.studentId && (
-                                                <button
-                                                    onClick={() => loadStudentHistory(report.studentId)}
-                                                    className="text-xs text-brand-teal hover:underline"
-                                                >
-                                                    {studentHistory[report.studentId] ? 'Hide History' : 'View History'}
-                                                </button>
-                                            )}
-                                        </div>
-                                        {report.studentId && studentHistory[report.studentId] && (
-                                            <div className="mt-3 border-t border-gray-200 pt-3">
-                                                <h4 className="text-sm font-semibold text-gray-700 mb-2">Past Reports ({studentHistory[report.studentId].length})</h4>
-                                                {studentHistory[report.studentId].length === 0 ? (
-                                                    <p className="text-xs text-gray-500">No previous reports found for this student.</p>
-                                                ) : (
-                                                    <div className="space-y-2 max-h-60 overflow-y-auto">
-                                                        {studentHistory[report.studentId].map((hist) => (
-                                                            <div key={hist.report_id} className="bg-gray-50 rounded p-3 text-sm">
-                                                                <div className="flex items-center gap-2 mb-1">
-                                                                    <span className="font-medium text-gray-700">
-                                                                        {new Date(hist.sessions?.session_date || hist.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
-                                                                    </span>
-                                                                    {hist.sessions?.batches?.batch_name && (
-                                                                        <span className="text-xs bg-teal-50 text-brand-teal px-2 py-0.5 rounded">
-                                                                            {hist.sessions.batches.batch_name}
-                                                                        </span>
-                                                                    )}
-                                                                    {hist.sent_at && (
-                                                                        <span className="text-xs bg-green-50 text-green-700 px-2 py-0.5 rounded">Sent</span>
-                                                                    )}
-                                                                </div>
-                                                                <p className="text-gray-600 text-xs whitespace-pre-line line-clamp-3">{hist.report_body}</p>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        )}
-                                    </div>
-                                ))}
-                            </div>
-
-                            <div className="mt-8 flex gap-4">
-                                <button
-                                    onClick={() => {
-                                        setCurrentScreen('upload');
-                                        setStudents([]);
-                                        setActivities([]);
-                                        setReports([]);
-                                        setUploadedImage(null);
-                                        setCurrentSessionId(null);
-                                        setMatchedStudentMap([]);
-                                        setStudentHistory({});
-                                        setIsProcessing(false);
-                                        setProcessingStatus('');
-                                    }}
-                                    className="px-6 py-3 bg-brand-teal text-white rounded-lg font-medium hover:bg-brand-teal-dark transition"
-                                >
-                                    Process Another Gradesheet
-                                </button>
-                                <button
-                                    onClick={() => setCurrentScreen('edit')}
-                                    className="px-6 py-3 bg-gray-200 text-gray-800 rounded-lg font-medium hover:bg-gray-300 transition"
-                                >
-                                    Back to Edit
-                                </button>
-                            </div>
-                        </div>
-                    </div>
+                    <ReportsScreen
+                        error={error}
+                        reports={reports}
+                        downloadAllReports={downloadAllReports}
+                        saveAllReportEdits={saveAllReportEdits}
+                        isSavingReports={isSavingReports}
+                        sendAllViaWhatsApp={sendAllViaWhatsApp}
+                        sendViaWhatsApp={sendViaWhatsApp}
+                        downloadReport={downloadReport}
+                        updateReportText={updateReportText}
+                        loadStudentHistory={loadStudentHistory}
+                        studentHistory={studentHistory}
+                        handleProcessAnother={handleProcessAnother}
+                        setCurrentScreen={setCurrentScreen}
+                    />
                 );
             }
 
