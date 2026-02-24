@@ -890,7 +890,7 @@
         // MAIN SCANNER COMPONENT
         // =====================================================
         function Scanner({ user, initialSession, isSiteAdmin }) {
-            const [currentScreen, setCurrentScreen] = useState(initialSession ? 'edit' : 'upload');
+            const [currentScreen, setCurrentScreen] = useState(initialSession ? 'reports' : 'upload');
             const [uploadedImage, setUploadedImage] = useState(null);
             const [isProcessing, setIsProcessing] = useState(false);
             const [processingStatus, setProcessingStatus] = useState('');
