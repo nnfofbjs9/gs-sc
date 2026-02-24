@@ -1574,12 +1574,12 @@
                 document.addEventListener('mouseup', onMouseUp);
             };
 
-            // Load teacher's batches on mount (RLS handles access control)
+            // Load teacher's batches on mount, and reload when admin status changes
             useEffect(() => {
                 loadBatches();
                 // Warm up edge function on component mount to prevent cold starts
                 warmUpEdgeFunction();
-            }, []);
+            }, [isSiteAdmin]);
 
             // Load existing reports if viewing a session
             useEffect(() => {
@@ -1655,15 +1655,16 @@
             }, [isProcessing]);
 
             const loadBatches = async () => {
-                const { data, error } = await supabase
+                let query = supabase
                     .from('batches')
                     .select('batch_id, batch_name, batch_code, center_name')
                     .eq('is_active', true);
-                if (error) {
-                    console.error('[Batches] Failed to load:', error.message);
-                    return;
+                if (!isSiteAdmin) {
+                    query = query.eq('teacher_id', user.id);
                 }
-                if (data) {
+                const { data, error } = await query;
+
+                if (!error && data) {
                     setBatches(data);
                 }
             };
