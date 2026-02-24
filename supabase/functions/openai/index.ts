@@ -727,6 +727,34 @@ Use clear, direct language.`,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
 
+    } else if (action === "fetch_batches") {
+      // Workaround for CORS/525 error on REST API - fetch batches via edge function
+      const { teacherId } = data;
+
+      let query = supabaseClient
+        .from('batches')
+        .select('batch_id, batch_name, batch_code, center_name')
+        .eq('is_active', true);
+
+      // If teacherId provided, filter by it (maintains RLS security)
+      if (teacherId) {
+        query = query.eq('teacher_id', teacherId);
+      }
+
+      const { data: batches, error } = await query;
+
+      if (error) {
+        console.error('[fetch_batches] Database error:', error);
+        throw new Error(error.message);
+      }
+
+      console.log(`[fetch_batches] Successfully fetched ${batches?.length || 0} batches`);
+
+      return new Response(JSON.stringify({ batches }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+
     } else if (action === "generate_learning_summary") {
       const { studentName, reportsContext, reportCount } = data;
 

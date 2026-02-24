@@ -163,6 +163,56 @@
         }
 
         // =====================================================
+        // HYBRID BATCH FETCHER - REST API with Edge Function Fallback
+        // =====================================================
+        async function fetchBatchesWithFallback(teacherId = null) {
+            try {
+                // Try REST API first (fast path)
+                let query = supabase
+                    .from('batches')
+                    .select('batch_id, batch_name, batch_code, center_name')
+                    .eq('is_active', true);
+
+                if (teacherId) {
+                    query = query.eq('teacher_id', teacherId);
+                }
+
+                const { data, error } = await query;
+
+                // If successful, return data
+                if (!error && data) {
+                    console.log(`[Batches] ✓ Loaded ${data.length} batches via REST API`);
+                    return data;
+                }
+
+                // If error is 525 or CORS-related, fall back to edge function
+                const is525Error = error?.message?.includes('525') ||
+                                  error?.message?.includes('CORS') ||
+                                  error?.message?.includes('SSL') ||
+                                  error?.code === '525';
+
+                if (is525Error) {
+                    console.warn('[Batches] ⚠️ REST API failed with 525/CORS error, falling back to Edge Function...');
+
+                    // Fallback to edge function
+                    const result = await callOpenAI('fetch_batches', { teacherId });
+
+                    if (result?.batches) {
+                        console.log(`[Batches] ✓ Loaded ${result.batches.length} batches via Edge Function fallback`);
+                        return result.batches;
+                    }
+                }
+
+                // If not a 525 error, or edge function also failed, throw original error
+                throw error || new Error('Failed to fetch batches');
+
+            } catch (err) {
+                console.error('[Batches] Failed to load batches:', err);
+                throw err;
+            }
+        }
+
+        // =====================================================
         // KEEP-WARM: Prevent Edge Function Cold Starts
         // =====================================================
         async function warmUpEdgeFunction() {
@@ -1655,17 +1705,13 @@
             }, [isProcessing]);
 
             const loadBatches = async () => {
-                let query = supabase
-                    .from('batches')
-                    .select('batch_id, batch_name, batch_code, center_name')
-                    .eq('is_active', true);
-                if (!isSiteAdmin) {
-                    query = query.eq('teacher_id', user.id);
-                }
-                const { data, error } = await query;
-
-                if (!error && data) {
-                    setBatches(data);
+                try {
+                    const teacherId = isSiteAdmin ? null : user.id;
+                    const data = await fetchBatchesWithFallback(teacherId);
+                    setBatches(data || []);
+                } catch (error) {
+                    console.error('[loadBatches] Error:', error);
+                    // Don't throw - just log and keep empty batches array
                 }
             };
 
