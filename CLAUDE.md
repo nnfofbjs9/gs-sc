@@ -57,7 +57,6 @@ This is a preschool enrichment program management system with:
 
 ### Git
 - Commit messages: conventional format (fix:, feat:, etc.)
-- Always include Co-Authored-By: Claude Sonnet 4.5
 - Test before committing
 - Use descriptive commit messages
 
