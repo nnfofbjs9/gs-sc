@@ -1791,10 +1791,13 @@
                     }
                     console.log('[SaveReports] Completed updateRecentGrades');
 
-                    // Update learning summaries for each student
-                    console.log('[SaveReports] Starting updateLearningSummaries');
-                    await updateLearningSummaries(reportsToSave);
-                    console.log('[SaveReports] Completed updateLearningSummaries');
+                    // Trigger background queue processing for learning summaries
+                    // This happens server-side via database trigger + edge function
+                    // Queue processing will run even if user closes the page
+                    console.log('[SaveReports] Learning summaries queued for background processing');
+                    processLearningSummaryQueue().catch(err => {
+                        console.warn('[SaveReports] Queue processing warning (non-blocking):', err);
+                    });
                 } catch (err) {
                     console.error('Failed to save reports:', err);
                 }
@@ -1978,104 +1981,24 @@
                 }
             };
 
-            const updateLearningSummaries = async (reportsToSave) => {
+            // Process learning summary queue (runs in background via edge function)
+            // The database trigger automatically adds students to the queue
+            // This function processes the queue, even if page is closed
+            const processLearningSummaryQueue = async () => {
                 try {
-                    console.log(`[Learning Summary] Starting update for ${reportsToSave.length} students`);
+                    console.log('[Learning Summary Queue] Triggering background processing...');
 
-                    for (const report of reportsToSave) {
-                        if (!report.studentId) {
-                            console.log(`[Learning Summary] Skipping report - no student_id`);
-                            continue;
-                        }
+                    // Call edge function to process queue
+                    const result = await callOpenAI('process_learning_summary_queue', {});
 
-                        console.log(`[Learning Summary] Processing student: ${report.studentName} (ID: ${report.studentId})`);
+                    console.log('[Learning Summary Queue] Background processing result:', result);
+                    console.log(`[Learning Summary Queue] ✓ Processed ${result.processed || 0} students`);
 
-                        // Fetch last 3 class reports for this student (reduced from 5 for cost efficiency)
-                        // Note: This will include the current session's report if it was just saved
-                        const { data: recentReports, error: fetchError } = await supabase
-                            .from('reports')
-                            .select('report_body, created_at, sessions(class_number, batches(level))')
-                            .eq('student_id', report.studentId)
-                            .order('created_at', { ascending: false })
-                            .limit(4);  // Fetch 4 so we can skip the most recent (current) one
-
-                        if (fetchError) {
-                            console.error(`[Learning Summary] Error fetching reports for ${report.studentName}:`, fetchError);
-                            continue;
-                        }
-
-                        console.log(`[Learning Summary] Found ${recentReports?.length || 0} recent reports for ${report.studentName}`);
-                        console.log(`[Learning Summary] Report details:`, recentReports?.map(r => ({
-                            hasBody: !!r.report_body,
-                            bodyLength: r.report_body?.length || 0,
-                            created: r.created_at
-                        })));
-
-                        // Skip the most recent report (which is the one we just generated) and use previous 3
-                        const previousReports = recentReports?.length > 1 ? recentReports.slice(1, 4) : [];
-
-                        if (!previousReports || previousReports.length === 0) {
-                            console.log(`[Learning Summary] No previous reports found for ${report.studentName} (first class or only 1 report), skipping`);
-                            continue;
-                        }
-
-                        console.log(`[Learning Summary] Using ${previousReports.length} previous reports (excluding current class)`);
-
-                        // Build context from previous reports (not including current class)
-                        const reportsContext = previousReports.map((r, idx) =>
-                            `Class ${idx + 1} (most recent first):\n${r.report_body}`
-                        ).join('\n\n---\n\n');
-
-                        console.log(`[Learning Summary] Reports context length: ${reportsContext.length} chars`);
-                        console.log(`[Learning Summary] First 200 chars of context:`, reportsContext.substring(0, 200));
-                        console.log(`[Learning Summary] Calling OpenAI for ${report.studentName}...`);
-
-                        // Use OpenAI to generate compressed summary
-                        let summaryResult;
-                        try {
-                            summaryResult = await callOpenAI('generate_learning_summary', {
-                                studentName: report.studentName,
-                                reportsContext,
-                                reportCount: previousReports.length
-                            });
-                        } catch (openaiError) {
-                            console.error(`[Learning Summary] OpenAI call failed for ${report.studentName}:`, openaiError);
-                            console.error(`[Learning Summary] Error details:`, {
-                                message: openaiError.message,
-                                stack: openaiError.stack,
-                                name: openaiError.name
-                            });
-                            continue;
-                        }
-
-                        console.log(`[Learning Summary] OpenAI response for ${report.studentName}:`, summaryResult);
-                        console.log(`[Learning Summary] summaryResult type:`, typeof summaryResult);
-                        console.log(`[Learning Summary] summaryResult.summary exists:`, 'summary' in (summaryResult || {}));
-                        console.log(`[Learning Summary] summaryResult.summary value:`, summaryResult?.summary);
-
-                        const learningSummary = summaryResult?.summary || '';
-
-                        console.log(`[Learning Summary] Generated summary for ${report.studentName} (${learningSummary.length} chars):`, learningSummary.substring(0, Math.min(100, learningSummary.length)) + (learningSummary.length > 100 ? '...' : ''));
-
-                        // Update student's learning_summary
-                        if (learningSummary) {
-                            const { error: updateError } = await supabase
-                                .from('students')
-                                .update({ learning_summary: learningSummary })
-                                .eq('student_id', report.studentId);
-
-                            if (updateError) {
-                                console.error(`[Learning Summary] Error updating DB for ${report.studentName}:`, updateError);
-                            } else {
-                                console.log(`[Learning Summary] ✓ Successfully updated DB for ${report.studentName}`);
-                            }
-                        } else {
-                            console.warn(`[Learning Summary] Empty summary for ${report.studentName}, skipping DB update`);
-                        }
-                    }
-                    console.log('[Learning Summary] ✓ Completed update for all students');
+                    return result;
                 } catch (err) {
-                    console.error('[Learning Summary] ERROR:', err);
+                    console.error('[Learning Summary Queue] Error:', err);
+                    // Don't throw - this is a background task
+                    return { processed: 0, error: err.message };
                 }
             };
 

@@ -577,6 +577,156 @@ Do NOT include "Child 1:", "Child 2:", or any student numbers/names as headers i
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
 
+    } else if (action === "process_learning_summary_queue") {
+      // Background task: Process queued learning summary updates
+      const { data: queueItems, error: queueError } = await supabaseClient
+        .from('learning_summary_queue')
+        .select('id, student_id, students(student_name)')
+        .eq('status', 'pending')
+        .order('created_at', { ascending: true })
+        .limit(10); // Process up to 10 at a time
+
+      if (queueError) {
+        console.error('[Queue] Error fetching queue:', queueError);
+        throw new Error(queueError.message);
+      }
+
+      if (!queueItems || queueItems.length === 0) {
+        return new Response(JSON.stringify({
+          message: 'No items in queue',
+          processed: 0
+        }), {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      console.log(`[Queue] Processing ${queueItems.length} learning summary updates`);
+      const results = [];
+
+      for (const item of queueItems) {
+        const studentId = item.student_id;
+        const studentName = item.students?.student_name || 'Unknown';
+
+        try {
+          // Mark as processing
+          await supabaseClient
+            .from('learning_summary_queue')
+            .update({ status: 'processing' })
+            .eq('id', item.id);
+
+          // Fetch last 4 reports (to skip most recent and use previous 3)
+          const { data: recentReports, error: reportsError } = await supabaseClient
+            .from('reports')
+            .select('report_body, created_at')
+            .eq('student_id', studentId)
+            .order('created_at', { ascending: false })
+            .limit(4);
+
+          if (reportsError) throw reportsError;
+
+          // Use previous 3 reports (skip the most recent)
+          const previousReports = recentReports?.length > 1 ? recentReports.slice(1, 4) : [];
+
+          if (previousReports.length === 0) {
+            // Not enough reports yet
+            await supabaseClient
+              .from('learning_summary_queue')
+              .delete()
+              .eq('id', item.id);
+
+            results.push({ student_id: studentId, status: 'skipped', reason: 'insufficient_reports' });
+            continue;
+          }
+
+          // Build context
+          const reportsContext = previousReports.map((r, idx) =>
+            `Class ${idx + 1} (most recent first):\n${r.report_body}`
+          ).join('\n\n---\n\n');
+
+          // Call OpenAI
+          const openaiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${OPENAI_API_KEY}`,
+            },
+            body: JSON.stringify({
+              model: "gpt-5-mini",
+              messages: [
+                {
+                  role: "system",
+                  content: `You are an AI assistant that analyzes student progress reports and generates concise learning summaries.`,
+                },
+                {
+                  role: "user",
+                  content: `Student: ${studentName}
+
+Here are the last ${previousReports.length} class reports:
+
+${reportsContext}
+
+Generate a concise learning summary (max 120 words) capturing:
+1. Overall learning trajectory
+2. Key strengths and areas of excellence
+3. Areas needing ongoing attention
+4. Notable trends across classes
+
+Use clear, direct language.`,
+                },
+              ],
+              max_completion_tokens: 200,
+            }),
+          });
+
+          const openaiResult = await openaiResponse.json();
+
+          if (openaiResult.error) throw new Error(openaiResult.error.message);
+
+          const summary = openaiResult.choices?.[0]?.message?.content?.trim() || "";
+
+          // Update student's learning_summary
+          if (summary) {
+            await supabaseClient
+              .from('students')
+              .update({ learning_summary: summary })
+              .eq('student_id', studentId);
+          }
+
+          // Mark as completed and remove from queue
+          await supabaseClient
+            .from('learning_summary_queue')
+            .delete()
+            .eq('id', item.id);
+
+          results.push({ student_id: studentId, status: 'completed', summary_length: summary.length });
+          console.log(`[Queue] ✓ Completed for ${studentName}`);
+
+        } catch (error) {
+          console.error(`[Queue] Error processing ${studentName}:`, error);
+
+          // Mark as failed
+          await supabaseClient
+            .from('learning_summary_queue')
+            .update({
+              status: 'failed',
+              error_message: error.message,
+              processed_at: new Date().toISOString()
+            })
+            .eq('id', item.id);
+
+          results.push({ student_id: studentId, status: 'failed', error: error.message });
+        }
+      }
+
+      return new Response(JSON.stringify({
+        processed: queueItems.length,
+        results
+      }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+
     } else if (action === "generate_learning_summary") {
       const { studentName, reportsContext, reportCount } = data;
 
