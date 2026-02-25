@@ -23,11 +23,9 @@ test.describe('Grading - Scanner (OCR & Grade Entry)', () => {
   test('should show session selection or creation', async ({ page }) => {
     await page.waitForTimeout(1500);
 
-    // Look for session-related UI elements
-    const sessionElements = page.locator('text=/session/i, select, [data-testid="session-selector"]').first();
-    const hasSessionUI = await sessionElements.count();
-
-    expect(hasSessionUI).toBeGreaterThanOrEqual(0);
+    // Verify scanner page loaded
+    const bodyContent = await page.textContent('body');
+    expect(bodyContent).toContain('Scan Gradesheet');
   });
 
   test('should allow manual grade entry', async ({ page }) => {
@@ -55,12 +53,10 @@ test.describe('Grading - Scanner (OCR & Grade Entry)', () => {
   test('should display student list for grading', async ({ page }) => {
     await page.waitForTimeout(2000);
 
-    // Look for student names or student list
-    const studentList = page.locator('[data-testid="student-list"], .student-row, text=/student/i').first();
-    const hasStudents = await studentList.count();
-
-    // Even if no students, UI should be present
-    expect(hasStudents).toBeGreaterThanOrEqual(0);
+    // Verify scanner interface is displayed
+    const bodyContent = await page.textContent('body');
+    expect(bodyContent).toBeTruthy();
+    expect(bodyContent!.length).toBeGreaterThan(100);
   });
 
   test('should validate grade input range', async ({ page }) => {
@@ -138,13 +134,9 @@ test.describe('Grading - Scanner (OCR & Grade Entry)', () => {
   });
 
   test('should show loading state during OCR processing', async ({ page }) => {
-    // This test would require actually uploading an image
-    // For now, we'll check if loading indicators exist in the page
-    const loadingIndicators = page.locator('.spinner, .loading, [data-testid="loading"], text=/processing/i');
-
-    // These might not be visible until OCR is triggered
-    const count = await loadingIndicators.count();
-    expect(count).toBeGreaterThanOrEqual(0);
+    // Verify page has loaded properly
+    const bodyContent = await page.textContent('body');
+    expect(bodyContent).toBeTruthy();
   });
 
   test('should handle mobile photo upload', async ({ page }) => {

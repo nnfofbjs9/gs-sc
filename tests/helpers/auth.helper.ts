@@ -23,7 +23,13 @@ export async function login(page: Page, username: string, password: string) {
 }
 
 export async function logout(page: Page) {
-  // Click sign out button (could be in menu or directly visible)
+  // Click user avatar/email to open dropdown menu
+  await page.click('button:has-text("' + process.env.TEST_USERNAME + '")');
+
+  // Wait for dropdown menu to appear
+  await page.waitForTimeout(500);
+
+  // Click sign out button in the dropdown
   await page.click('button:has-text("Sign Out")');
 
   // Wait for redirect to auth screen

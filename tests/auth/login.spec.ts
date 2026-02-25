@@ -30,7 +30,8 @@ test.describe('Authentication - Login', () => {
     // Should see the main app navigation
     await expect(page.locator('button:has-text("Scanner")')).toBeVisible();
     await expect(page.locator('button:has-text("History")')).toBeVisible();
-    await expect(page.locator('button:has-text("Sign Out")')).toBeVisible();
+    // Check for user email (Sign Out is in dropdown)
+    await expect(page.locator(`text=${username}`)).toBeVisible();
   });
 
   test('should show error for invalid credentials', async ({ page }) => {
@@ -68,8 +69,8 @@ test.describe('Authentication - Login', () => {
     await page.reload();
     await page.waitForLoadState('networkidle');
 
-    // Should still be logged in
-    await expect(page.locator('button:has-text("Sign Out")')).toBeVisible();
+    // Should still be logged in (check for user email)
+    await expect(page.locator(`text=${username}`)).toBeVisible();
   });
 
   test('should display company logo', async ({ page }) => {
