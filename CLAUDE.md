@@ -104,6 +104,28 @@ npx supabase db push
 3. **Learning Summary**: Only generates for students with 2+ reports
 4. **Queue Processing**: Auto-triggered but can be manually invoked if needed
 
+## CORS Policy — Do Not Restrict
+
+**CRITICAL**: The edge function (`supabase/functions/openai/index.ts`) MUST use `"Access-Control-Allow-Origin": "*"` (wildcard).
+
+**Do NOT restrict CORS to a hardcoded list of domains.** Here is why:
+
+- Vercel generates a unique URL for every branch, commit, and PR (e.g. `gs-sc-git-staging-abc123.vercel.app`)
+- A hardcoded allowlist will never cover all of these — any unlisted URL gets blocked immediately
+- This looks identical to a cold start CORS error, making it very hard to diagnose
+- The wildcard is safe here because **every request already requires a valid Supabase JWT** — that is the real security layer
+
+The correct CORS config in the edge function is:
+```typescript
+function getCorsHeaders(_origin: string | null) {
+  return {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization, apikey, x-client-info",
+  };
+}
+```
+
 ## Contact
 
 For questions about requirements or design decisions, ask the user (Akshat).
