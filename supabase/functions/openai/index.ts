@@ -49,19 +49,12 @@ function formatRecentGrades(recentClassGrades: any[]): string {
   }).join('\n');
 }
 
-const ALLOWED_ORIGINS = [
-  "https://gs-sc.vercel.app",
-  "https://gs-sc-avs-projects-2150cab3.vercel.app",
-  "https://gs-sc-git-main-avs-projects-2150cab3.vercel.app",
-  "http://localhost:3000",
-  "http://localhost:5173",
-  "http://127.0.0.1:5500",
-];
-
-function getCorsHeaders(origin: string | null) {
-  const allowedOrigin = origin && ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+// CORS is open to all origins because every request requires a valid Supabase JWT.
+// The JWT is the real authentication layer — CORS restriction here adds no meaningful security
+// and breaks Vercel's dynamically-generated preview/staging URLs.
+function getCorsHeaders(_origin: string | null) {
   return {
-    "Access-Control-Allow-Origin": allowedOrigin,
+    "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, Authorization, apikey, x-client-info",
   };
