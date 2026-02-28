@@ -36,22 +36,20 @@
         const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
         // =====================================================
-        // INPUT SANITIZATION UTILITIES
+        // INPUT VALIDATION UTILITIES
         // =====================================================
-        // Reject strings containing characters commonly used in SQL injection or XSS
-        const DANGEROUS_PATTERN = /[<>{}();'"\\\/\-\-]|(\b(SELECT|INSERT|UPDATE|DELETE|DROP|UNION|ALTER|EXEC|SCRIPT)\b)/i;
+        // Note: SQL injection is handled server-side by Supabase's parameterised queries.
+        // Client-side validation here is for UX feedback only.
 
         function sanitizeText(value) {
             if (typeof value !== 'string') return '';
             return value.trim().replace(/\s+/g, ' ');
         }
 
+        // Simple text sanitisation for free-form fields (notes, descriptions, etc.)
+        // SQL injection is handled by Supabase parameterised queries server-side.
         function validateSafeInput(value, fieldName) {
-            const trimmed = sanitizeText(value);
-            if (DANGEROUS_PATTERN.test(trimmed)) {
-                throw new Error(`${fieldName} contains disallowed characters. Please remove any special characters like < > { } ( ) ; ' " \\ / --`);
-            }
-            return trimmed;
+            return sanitizeText(value);
         }
 
         function validateEmail(value) {
@@ -60,9 +58,6 @@
             const emailRegex = /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/;
             if (!emailRegex.test(trimmed)) {
                 throw new Error('Please enter a valid email address.');
-            }
-            if (DANGEROUS_PATTERN.test(trimmed.replace(/@/g, '').replace(/\./g, ''))) {
-                throw new Error('Email contains disallowed characters.');
             }
             return trimmed;
         }
@@ -82,9 +77,10 @@
             if (!trimmed) throw new Error(`${fieldName} is required.`);
             if (trimmed.length < 2) throw new Error(`${fieldName} must be at least 2 characters.`);
             if (trimmed.length > 100) throw new Error(`${fieldName} must be less than 100 characters.`);
-            const nameRegex = /^[a-zA-Z\s.]+$/;
+            // Allow letters (including accented/international), spaces, hyphens, apostrophes, and periods
+            const nameRegex = /^[\p{L}\s'\-.]+$/u;
             if (!nameRegex.test(trimmed)) {
-                throw new Error(`${fieldName} can only contain letters, spaces, and periods.`);
+                throw new Error(`${fieldName} can only contain letters, spaces, hyphens, apostrophes, and periods.`);
             }
             return trimmed;
         }
