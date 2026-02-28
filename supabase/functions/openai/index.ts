@@ -49,11 +49,23 @@ function formatRecentGrades(recentClassGrades: any[]): string {
   }).join('\n');
 }
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization, apikey, x-client-info",
-};
+const ALLOWED_ORIGINS = [
+  "https://gs-sc.vercel.app",
+  "https://gs-sc-avs-projects-2150cab3.vercel.app",
+  "https://gs-sc-git-main-avs-projects-2150cab3.vercel.app",
+  "http://localhost:3000",
+  "http://localhost:5173",
+  "http://127.0.0.1:5500",
+];
+
+function getCorsHeaders(origin: string | null) {
+  const allowedOrigin = origin && ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+  return {
+    "Access-Control-Allow-Origin": allowedOrigin,
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization, apikey, x-client-info",
+  };
+}
 
 // =====================================================
 // HELPER FUNCTIONS FOR ACTIVITY LOOKUP
@@ -172,6 +184,8 @@ function mapActivitiesWithWarnings(
 }
 
 serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req.headers.get("origin"));
+
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 200, headers: corsHeaders });
   }
@@ -188,6 +202,21 @@ serve(async (req) => {
     }
 
     if (action === "extract") {
+      // Validate image size server-side (base64 of 10MB ≈ 13.4MB string)
+      const MAX_BASE64_LENGTH = 14_000_000; // ~10MB original
+      if (!data.image || typeof data.image !== "string") {
+        return new Response(JSON.stringify({ error: "Image data is required" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (data.image.length > MAX_BASE64_LENGTH) {
+        return new Response(JSON.stringify({ error: "Image too large. Please upload an image under 10MB." }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
       const response = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
         headers: {

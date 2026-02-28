@@ -38,7 +38,7 @@
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect, useCallback } = React;
+        const { useState, useEffect, useCallback, useRef } = React;
 
         // =====================================================
         // CONFIGURATION
@@ -234,7 +234,7 @@
                         },
                         body: JSON.stringify({ action: 'ping', data: {} }),
                         signal: controller.signal
-                    }).catch(() => {}); // Ignore errors - this is just a warm-up
+                    });
 
                     clearTimeout(timeoutId);
                     console.log('[Warm-up] Edge function pinged successfully');
@@ -1682,10 +1682,17 @@
                 }
             };
 
+            // Track latest processing state in a ref so the stable event listener
+            // always reads current values without needing to re-register on every change.
+            const processingRef = useRef({ isProcessing, total: reportProgress.total });
+            useEffect(() => {
+                processingRef.current = { isProcessing, total: reportProgress.total };
+            }, [isProcessing, reportProgress.total]);
+
             // Re-acquire wake lock if page becomes visible again (user returns to app)
             useEffect(() => {
                 const handleVisibilityChange = async () => {
-                    if (document.visibilityState === 'visible' && isProcessing && reportProgress.total > 0) {
+                    if (document.visibilityState === 'visible' && processingRef.current.isProcessing && processingRef.current.total > 0) {
                         // If we're processing reports and user returns, try to re-acquire
                         await acquireWakeLock();
                     }
@@ -1695,7 +1702,7 @@
                 return () => {
                     document.removeEventListener('visibilitychange', handleVisibilityChange);
                 };
-            }, [isProcessing, reportProgress.total]);
+            }, []); // Stable: handler reads latest state via ref
 
             // Release wake lock when component unmounts or processing stops
             useEffect(() => {
@@ -2164,12 +2171,11 @@
                     if (imageBase64 && sessionId) {
                         try {
                             const base64Data = imageBase64.split(',')[1];
-                            const byteCharacters = atob(base64Data);
-                            const byteNumbers = new Array(byteCharacters.length);
-                            for (let i = 0; i < byteCharacters.length; i++) {
-                                byteNumbers[i] = byteCharacters.charCodeAt(i);
+                            const binaryString = atob(base64Data);
+                            const byteArray = new Uint8Array(binaryString.length);
+                            for (let i = 0; i < binaryString.length; i++) {
+                                byteArray[i] = binaryString.charCodeAt(i);
                             }
-                            const byteArray = new Uint8Array(byteNumbers);
                             const blob = new Blob([byteArray], { type: 'image/jpeg' });
 
                             const filePath = `${user.id}/${sessionId}.jpg`;
