@@ -217,30 +217,13 @@
         // =====================================================
         async function warmUpEdgeFunction() {
             try {
-                // Send a lightweight ping to wake up the edge function
-                // This prevents CORS errors during actual image upload
-                const session = await supabase.auth.getSession();
-                if (session?.data?.session?.access_token) {
-                    console.log('[Warm-up] Pinging edge function to prevent cold start...');
-                    const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), 5000);
-
-                    await fetch(API_ENDPOINT, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${session.data.session.access_token}`,
-                            'apikey': SUPABASE_ANON_KEY,
-                        },
-                        body: JSON.stringify({ action: 'ping', data: {} }),
-                        signal: controller.signal
-                    });
-
-                    clearTimeout(timeoutId);
-                    console.log('[Warm-up] Edge function pinged successfully');
-                }
+                // Use callOpenAI so the ping benefits from the same retry logic as real requests.
+                // This ensures the function is actually warm before the user uploads an image.
+                console.log('[Warm-up] Pinging edge function to prevent cold start...');
+                await callOpenAI('ping', {});
+                console.log('[Warm-up] Edge function is ready');
             } catch (err) {
-                // Silently fail - warm-up is optional
+                // Silently fail - warm-up is optional, the real request will still retry
                 console.log('[Warm-up] Failed (non-critical):', err.message);
             }
         }
