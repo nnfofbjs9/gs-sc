@@ -144,17 +144,20 @@ test.describe('Smoke Tests - Critical Paths', () => {
   test('CRITICAL: Supabase connection is working', async ({ page }) => {
     await page.goto('/');
 
-    // Check if Supabase client loads
+    // Wait for auth screen so the page (including Supabase scripts) has loaded
+    await page.waitForSelector('input[type="email"]', { timeout: 15000 });
+
+    // Check if Supabase client is available as a global (set by the app)
     const supabaseLoaded = await page.evaluate(() => {
       return typeof (window as any).supabase !== 'undefined';
     });
 
     expect(supabaseLoaded).toBeTruthy();
 
-    // Try to login (this uses Supabase auth)
+    // Login uses Supabase auth — success proves connectivity
     await login(page, process.env.TEST_USERNAME!, process.env.TEST_PASSWORD!);
 
-    // If login succeeds, Supabase is working (check for user email)
+    // Verify we're logged in
     await expect(page.locator(`text=${process.env.TEST_USERNAME}`)).toBeVisible();
   });
 

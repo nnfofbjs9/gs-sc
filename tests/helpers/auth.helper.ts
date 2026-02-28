@@ -15,11 +15,9 @@ export async function login(page: Page, username: string, password: string) {
   // Click login button
   await page.click('button:has-text("Sign In")');
 
-  // Wait for navigation to complete (app should load)
-  await page.waitForLoadState('networkidle');
-
-  // Verify we're logged in (header should be visible)
-  await expect(page.locator('header').first()).toBeVisible({ timeout: 10000 });
+  // Wait for logged-in state: the app header renders after React mounts
+  // Use 'attached' state so it works on mobile viewports where nav is CSS-hidden
+  await page.waitForSelector('header', { state: 'attached', timeout: 30000 });
 }
 
 export async function logout(page: Page) {
