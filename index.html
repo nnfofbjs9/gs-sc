@@ -137,9 +137,10 @@
                     console.error(`[${errorType} Error] ${err.name}: ${err.message}, attempt ${retryCount + 1}/3`);
 
                     if (retryCount < 2) {
-                        // CORS errors often mean cold start - use longer backoff (3s, 6s)
-                        // Regular network errors use shorter backoff (2s, 4s)
-                        const waitTime = isCorsError ? 3000 * (retryCount + 1) : 2000 * (retryCount + 1);
+                        // Cold starts cause an immediate connection rejection (not a timeout),
+                        // so we need to wait long enough for the function to actually boot (10-20s).
+                        // Retry 1: wait 15s, Retry 2: wait 20s
+                        const waitTime = isCorsError ? 15000 + (retryCount * 5000) : 3000 * (retryCount + 1);
                         console.log(`[Retry] ${errorType} issue detected. Waiting ${waitTime/1000}s before retry ${retryCount + 2}/3...`);
                         await new Promise(resolve => setTimeout(resolve, waitTime));
                         console.log(`[Retry] Attempting retry ${retryCount + 2}/3...`);
