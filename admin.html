@@ -36,6 +36,25 @@
         const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
         // =====================================================
+        // SUPABASE QUERY RETRY HELPER
+        // =====================================================
+        // Supabase REST API occasionally returns 525 (SSL handshake failure) due to
+        // a transient CDN issue. Retrying after a short wait usually resolves it.
+        async function withRetry(queryFn, retries = 3, delayMs = 3000) {
+            for (let attempt = 1; attempt <= retries; attempt++) {
+                const result = await queryFn();
+                const is525 = result.error?.message?.includes('525') ||
+                              result.error?.message?.includes('SSL') ||
+                              result.error?.message?.includes('NetworkError') ||
+                              result.error?.message?.includes('Failed to fetch');
+                if (!result.error || !is525) return result;
+                console.warn(`[Retry] Supabase 525 error, attempt ${attempt}/${retries}. Retrying in ${delayMs/1000}s...`);
+                if (attempt < retries) await new Promise(r => setTimeout(r, delayMs));
+            }
+            return await queryFn(); // final attempt, return whatever we get
+        }
+
+        // =====================================================
         // INPUT VALIDATION UTILITIES
         // =====================================================
         // Note: SQL injection is handled server-side by Supabase's parameterised queries.
@@ -991,9 +1010,9 @@
                     const isSiteAdmin = teacher?.role === 'site_admin';
 
                     const [studentsRes, parentsRes, batchesRes] = await Promise.all([
-                        supabase.from('students').select('*, parents(parent_name, email, phone), batches(batch_name, batch_code)').order('student_name'),
-                        supabase.from('parents').select('*').order('parent_name'),
-                        supabase.from('batches').select('*, centers(center_name)').eq('is_active', true).order('batch_name')
+                        withRetry(() => supabase.from('students').select('*, parents(parent_name, email, phone), batches(batch_name, batch_code)').order('student_name')),
+                        withRetry(() => supabase.from('parents').select('*').order('parent_name')),
+                        withRetry(() => supabase.from('batches').select('*, centers(center_name)').eq('is_active', true).order('batch_name'))
                     ]);
 
                     if (studentsRes.error) throw studentsRes.error;
