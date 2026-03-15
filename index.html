@@ -1058,13 +1058,19 @@
             }, [isProcessing]);
 
             const loadBatches = async () => {
-                try {
-                    const teacherId = isSiteAdmin ? null : user.id;
-                    const data = await fetchBatchesWithFallback(teacherId);
-                    setBatches(data || []);
-                } catch (error) {
+                let query = supabase
+                    .from('batches')
+                    .select('batch_id, batch_name, batch_code, center_name')
+                    .eq('is_active', true);
+                if (!isSiteAdmin) {
+                    query = query.eq('teacher_id', user.id);
+                }
+                const { data, error } = await query;
+
+                if (!error && data) {
+                    setBatches(data);
+                } else if (error) {
                     console.error('[loadBatches] Error:', error);
-                    // Don't throw - just log and keep empty batches array
                 }
             };
 
