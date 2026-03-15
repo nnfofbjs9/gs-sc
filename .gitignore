@@ -6,6 +6,11 @@ supabase/.branches/
 .env
 .env.local
 .env.*.local
+.env.test
+
+# Playwright
+playwright-report/
+test-results/
 
 # Node
 node_modules/

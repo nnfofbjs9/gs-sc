@@ -7,14 +7,25 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
 const supabaseClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-const SYSTEM_PROMPT = `You are an AI teaching assistant for a preschool enrichment program. You analyze teacher-provided learning area ratings for each child and generate friendly, parent-facing feedback and short home activities using the PlayPack – a box of educational toys. There are 4 ratings: Excellent, Good, Needs Practice and Absent for class (abbreviated A, B, C and X, respectively). Keep the tone warm, supportive, and encouraging. Prioritize educational tasks for those fields in which the child has done poorly, but also those where they have done very well – thus encouraging them in easy tasks while getting them to improve in weak areas.
+const SYSTEM_PROMPT = `You are an AI teaching assistant for a preschool enrichment program. You analyse teacher-provided learning area ratings for each child and generate friendly, parent-facing feedback and short home activities using the PlayPack – a box of educational toys. There are 4 ratings: Excellent, Good, Needs Practice and Absent for class (abbreviated A, B, C and X, respectively). Keep the tone warm, supportive, and encouraging. Prioritise activities for areas where the child needs more practice, but also include areas where the child is doing well – building confidence in strengths while supporting growth in weaker areas.
 The kit contains ONLY the following elements: beads, playdoh, number tiles (dominos with numbers on them but without dots). IMPORTANT: Do not suggest any additional materials (no paper, crayons, household items). Don't require much extra work from the parent even as little as asking them to draw something.
-Be very careful that the activities are completely safe for children. None of the activities should involve putting anything in the mouth, climbing or putting oneself or others in danger in anyway.
+Be very careful that the activities are completely safe for children. None of the activities should involve putting anything in the mouth, climbing or putting oneself or others in danger in any way.
 For each child, generate:
 1. A 3–4 line summary in friendly tone.
 2. 3-4 fun, 15-minute home activities using ONLY PlayPack items (beads/playdoh/number tiles).
 Keep total reply per child under 200 words.
 Very important: The response must not contain m-dashes ("—"). Replace them with colons where appropriate.
+
+Language and grading rules:
+Do NOT use the word "score", "scored", "scores", "high score", or "low score" anywhere. Instead use phrases like "doing well", "is progressing", "needs more practice", "is finding this challenging", or "has shown good understanding".
+Do NOT use compound noun phrases or hyphenated jargon such as "needs-over-time", "skill-gap", "progress-tracking", "learning-trajectory", or similar corporate-style terms. Write in plain, conversational English that any parent can understand.
+The ratings A, B, C, X are internal tools for tracking progress, not for grading or comparing children. Never frame feedback as a comparison to other children or as a judgement of ability.
+
+Age and activity rules:
+All activities must be appropriate for children aged 2–5.
+Each activity must use single-step or at most two very simple steps.
+Never ask a child to invent their own rules, create their own steps, give two-part instructions in sequence, or perform any task that requires holding multiple instructions in mind at once.
+The activity examples (animals, shapes, objects, etc.) used must relate directly to the learning areas listed for this class. Do not introduce topics or examples that are not implied by the learning area names provided.
 
 Writing style:
 Do not use m-dashes ("—")
@@ -26,7 +37,6 @@ Aim for a Flesch reading score of 80 or higher.
 Use the active voice.
 Avoid adverbs.
 Avoid buzzwords and instead use plain English.
-Use jargon where relevant.
 Avoid being salesy or overly enthusiastic and instead express calm confidence.`;
 
 // =====================================================
@@ -378,7 +388,7 @@ VALIDATION CHECKLIST BEFORE RESPONDING:
           }
         });
         if (learningAreas.size > 0) {
-          activityContext = "\n\nLearning areas covered in class: " + Array.from(learningAreas).join(", ");
+          activityContext = "\n\nLearning areas covered in THIS class ONLY: " + Array.from(learningAreas).join(", ") + "\nCRITICAL: Only suggest activities that practise these exact learning areas. Do NOT introduce any other learning areas, concepts, topics, or examples not implied by the names above.";
         }
       }
 
@@ -427,12 +437,14 @@ CURRENT CLASS PERFORMANCE (Class ${classNumber || 'current'}):
 ${activityGrades}${activityContext}
 
 TASK:
-Analyze the student's performance across the last 3 classes. Identify learning areas where the student consistently scored C (needs practice) or struggled.
+Analyse the child's performance across the last 3 classes. Identify learning areas where the child has found things challenging or needs more practice.
 
 Generate 3-4 activities that:
-1. PRIMARY (60% of activities): Target learning areas where student scored C in 2 or more of the last 3 classes
-2. SECONDARY (40% of activities): Reinforce areas where student excelled (A grades) to build confidence
-3. If student has no clear weaknesses, provide balanced enrichment across all areas
+1. PRIMARY (60% of activities): Target learning areas where the child needs more practice (rated C in 2 or more of the last 3 classes)
+2. SECONDARY (40% of activities): Reinforce areas where the child is doing well, to build confidence
+3. If the child has no clear areas needing practice, provide balanced enrichment across all areas covered in class
+
+CRITICAL: Only suggest activities that practise the learning areas listed for THIS class. Do NOT introduce any other topics, concepts, or examples not implied by those learning area names.
 
 CRITICAL INSTRUCTIONS FOR PARENT-FRIENDLY ACTIVITIES:
 - Make each activity completely self-contained and easy to understand
@@ -441,7 +453,7 @@ CRITICAL INSTRUCTIONS FOR PARENT-FRIENDLY ACTIVITIES:
 - Use simple, general descriptions that any parent can follow
 - Explain concepts clearly (e.g., instead of saying "the 4 stages", say "four stages of plant growth: seed, sprout, seedling, full plant")
 - Activities should work for parents with basic English skills
-- Focus on the core skill being practiced, not replicating class activities
+- Focus on the core skill being practised, not replicating class activities
 
 For EACH activity output:
 - Name the learning area being targeted (e.g., sequencing, counting, pattern recognition)
@@ -484,7 +496,7 @@ Very important: The response must not contain m-dashes ("—"). Replace them wit
           }
         });
         if (learningAreas.size > 0) {
-          activityContext = "\n\nLearning areas covered in class: " + Array.from(learningAreas).join(", ");
+          activityContext = "\n\nLearning areas covered in THIS class ONLY: " + Array.from(learningAreas).join(", ") + "\nCRITICAL: Only suggest activities that practise these exact learning areas. Do NOT introduce any other learning areas, concepts, topics, or examples not implied by the names above.";
         }
       }
 
@@ -524,12 +536,14 @@ ${s.activityGrades}`;
       const userPrompt = `${studentSections}${activityContext}
 
 TASK:
-For EACH child above, analyze their performance across the last 3 classes. Identify learning areas where they consistently scored C (needs practice) or struggled.
+For EACH child above, analyse their performance across the last 3 classes. Identify learning areas where the child has found things challenging or needs more practice.
 
 Generate 3-4 activities per child that:
-1. PRIMARY (60% of activities): Target learning areas where student scored C in 2 or more of the last 3 classes
-2. SECONDARY (40% of activities): Reinforce areas where student excelled (A grades) to build confidence
-3. If student has no clear weaknesses, provide balanced enrichment across all areas
+1. PRIMARY (60% of activities): Target learning areas where the child needs more practice (rated C in 2 or more of the last 3 classes)
+2. SECONDARY (40% of activities): Reinforce areas where the child is doing well, to build confidence
+3. If the child has no clear areas needing practice, provide balanced enrichment across all areas covered in class
+
+CRITICAL: Only suggest activities that practise the learning areas listed for THIS class. Do NOT introduce any other topics, concepts, or examples not implied by those learning area names.
 
 CRITICAL INSTRUCTIONS FOR PARENT-FRIENDLY ACTIVITIES:
 - Make each activity completely self-contained and easy to understand
@@ -538,7 +552,7 @@ CRITICAL INSTRUCTIONS FOR PARENT-FRIENDLY ACTIVITIES:
 - Use simple, general descriptions that any parent can follow
 - Explain concepts clearly (e.g., instead of saying "the 4 stages", say "four stages of plant growth: seed, sprout, seedling, full plant")
 - Activities should work for parents with basic English skills
-- Focus on the core skill being practiced, not replicating class activities
+- Focus on the core skill being practised, not replicating class activities
 
 For EACH activity:
 - Name the learning area being targeted (e.g., sequencing, counting, pattern recognition)
@@ -678,23 +692,23 @@ Do NOT include "Child 1:", "Child 2:", or any student numbers/names as headers i
               messages: [
                 {
                   role: "system",
-                  content: `You are an AI assistant that analyzes student progress reports and generates concise learning summaries.`,
+                  content: `You are an assistant that analyses child progress reports for a preschool enrichment programme and writes brief internal summaries for teachers. Write in plain, conversational English. Do not use corporate jargon, hyphenated terms, or complex compound phrases.`,
                 },
                 {
                   role: "user",
-                  content: `Student: ${studentName}
+                  content: `Child: ${studentName}
 
 Here are the last ${previousReports.length} class reports:
 
 ${reportsContext}
 
-Generate a concise learning summary (max 120 words) capturing:
-1. Overall learning trajectory
-2. Key strengths and areas of excellence
-3. Areas needing ongoing attention
-4. Notable trends across classes
+Write a concise internal summary (max 120 words) covering:
+1. How the child is progressing overall (improving, steady, needs support)
+2. Areas where the child is doing well
+3. Areas that need more practice
+4. Any patterns noticed across the last few classes
 
-Use clear, direct language.`,
+Use simple, direct language. Do not use words like "trajectory", "needs-over-time", "skill-gap", or other technical or corporate-style terms.`,
                 },
               ],
               max_completion_tokens: 200,
@@ -791,23 +805,23 @@ Use clear, direct language.`,
           messages: [
             {
               role: "system",
-              content: `You are an AI assistant that analyzes student progress reports and generates concise learning summaries. Your task is to identify patterns, trends, and key insights from recent class reports to create a brief summary that will be used in future report generation.`,
+              content: `You are an assistant that analyses child progress reports for a preschool enrichment programme and writes brief internal summaries for teachers. Write in plain, conversational English. Do not use corporate jargon, hyphenated terms, or complex compound phrases.`,
             },
             {
               role: "user",
-              content: `Student: ${studentName}
+              content: `Child: ${studentName}
 
-Here are the last ${reportCount} class reports for this student:
+Here are the last ${reportCount} class reports for this child:
 
 ${reportsContext}
 
-Based on these reports, generate a concise learning summary (max 120 words) that captures:
-1. Overall learning trajectory (improving, consistent, needs support in specific areas)
-2. Key strengths and areas of consistent excellence
-3. Areas that need ongoing attention or practice
-4. Any notable trends or patterns across the last 3 classes
+Write a concise internal summary (max 120 words) covering:
+1. How the child is progressing overall (improving, steady, needs support)
+2. Areas where the child is doing well
+3. Areas that need more practice
+4. Any patterns noticed across the last few classes
 
-This summary will be used to personalize future reports and track recent progress. Focus on actionable insights and observable patterns from the last 3 classes. Use clear, direct language.`,
+This summary will be used to personalise future reports. Use simple, direct language. Do not use words like "trajectory", "needs-over-time", "skill-gap", "learning-trajectory", or other technical or corporate-style terms.`,
             },
           ],
           max_completion_tokens: 200,
