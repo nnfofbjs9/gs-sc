@@ -1,6 +1,37 @@
-# Known Issues & Fixes
+# Troubleshooting Guide
 
-A log of bugs encountered, their root causes, and how they were resolved.
+A reference log of errors encountered, their root causes, and how they were resolved.
+
+---
+
+## Empty GPT response / empty report generated
+
+**Symptom**
+- Report is blank or missing content after scanning
+- No visible error, but OpenAI returned nothing useful
+
+**Root Cause**
+The response exceeded the `max_completion_tokens` limit set on the OpenAI API call. When the output is truncated, the result can come back empty or malformed.
+
+**Fix**
+Investigate why the response is so long (e.g. too many students, overly verbose prompt), or increase `max_completion_tokens` in `supabase/functions/openai/index.ts`.
+
+---
+
+## `NetworkError when attempting to fetch resource`
+
+**Symptom**
+- Console error: `Error: NetworkError when attempting to fetch resource.`
+- Scanning or report generation fails immediately
+
+**Root Cause**
+The edge function is unavailable — usually because it needs to be redeployed after a Supabase update or after the function code has changed.
+
+**Fix**
+Redeploy the edge function:
+```bash
+supabase functions deploy openai --no-verify-jwt
+```
 
 ---
 
