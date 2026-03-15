@@ -1058,19 +1058,26 @@
             }, [isProcessing]);
 
             const loadBatches = async () => {
+                console.log('[loadBatches] Starting batch load. isSiteAdmin =', isSiteAdmin, '| user.id =', user.id);
                 let query = supabase
                     .from('batches')
                     .select('batch_id, batch_name, batch_code, center_name')
                     .eq('is_active', true);
                 if (!isSiteAdmin) {
+                    console.log('[loadBatches] Filtering by teacher_id:', user.id);
                     query = query.eq('teacher_id', user.id);
+                } else {
+                    console.log('[loadBatches] Site admin — loading ALL batches (no teacher_id filter)');
                 }
                 const { data, error } = await query;
 
                 if (!error && data) {
+                    console.log(`[loadBatches] ✓ Loaded ${data.length} batch(es):`, data.map(b => `${b.batch_name} (code: ${b.batch_code})`));
                     setBatches(data);
                 } else if (error) {
-                    console.error('[loadBatches] Error:', error);
+                    console.error('[loadBatches] ✗ Supabase error loading batches:', error.message, '| code:', error.code);
+                } else {
+                    console.warn('[loadBatches] ✗ No data returned and no error — query returned null');
                 }
             };
 
@@ -1651,21 +1658,26 @@
 
                     // Auto-match batch from OCR-extracted batchCode
                     let autoBatchId = selectedBatchId;
-                    if ((extractedData.batchCode || extractedData.classCode) && batches.length > 0) {
-                        const ocrCode = (extractedData.batchCode || extractedData.classCode).trim();
-                        console.log('[Batch] Searching for batch code:', ocrCode, 'in', batches.length, 'batches');
+                    const ocrBatchCode = extractedData.batchCode || extractedData.classCode;
+                    console.log('[Batch] Auto-match check — OCR batchCode:', ocrBatchCode || '(none)', '| batches loaded:', batches.length);
+
+                    if (!ocrBatchCode) {
+                        console.warn('[Batch] ✗ OCR did not extract a batch/class code from the image. Check the raw OCR response above.');
+                    } else if (batches.length === 0) {
+                        console.warn('[Batch] ✗ Batches array is empty at time of auto-match. This likely means loadBatches() has not completed yet (race condition with isSiteAdmin propagation) or returned 0 results. Check [loadBatches] logs above.');
+                    } else {
+                        const ocrCode = ocrBatchCode.trim();
+                        console.log('[Batch] Searching for batch code:', JSON.stringify(ocrCode), 'in', batches.length, 'loaded batch(es)');
+                        console.log('[Batch] Available batch codes:', batches.map(b => `"${b.batch_code}" (${b.batch_name})`));
                         const matchedBatch = batches.find(b => b.batch_code === ocrCode);
                         if (matchedBatch) {
                             autoBatchId = matchedBatch.batch_id;
                             setSelectedBatchId(autoBatchId);
-                            console.log('[Batch] ✓ Auto-matched batch:', matchedBatch.batch_name, 'ID:', autoBatchId);
+                            console.log('[Batch] ✓ Auto-matched batch:', matchedBatch.batch_name, '| ID:', autoBatchId);
                             debugLog('Auto-matched batch', { ocrCode, matchedName: matchedBatch.batch_name, batchId: autoBatchId });
                         } else {
-                            console.warn('[Batch] ✗ No batch match found for OCR batchCode:', ocrCode);
-                            console.log('[Batch] Available batch codes:', batches.map(b => b.batch_code));
+                            console.warn('[Batch] ✗ No batch found with batch_code === ', JSON.stringify(ocrCode), '. Check for whitespace, capitalisation, or encoding differences.');
                         }
-                    } else {
-                        console.warn('[Batch] ✗ No batchCode extracted from OCR or no batches loaded');
                     }
 
                     setCurrentScreen('edit');
